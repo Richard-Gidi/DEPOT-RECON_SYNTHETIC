@@ -1,57 +1,13 @@
 import streamlit as st
 import pandas as pd
 import io
-import re
-import threading
-import calendar as _cal
-import concurrent.futures
-from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-import requests as _requests
-import pdfplumber
 
 st.set_page_config(page_title="Order Request Report", layout="wide")
 
-# ── Fix progress bar & log visibility ─────────────────────────────────────────
-st.markdown("""
-<style>
-/* Progress bar label */
-[data-testid="stProgressBar"] p,
-[data-testid="stProgressBar"] span,
-[data-testid="stProgressBar"] label,
-[data-testid="stProgressBar"] div[class*="StatusWidget"] {
-    color: #1a1a1a !important;
-    font-weight: 600 !important;
-}
-/* Progress bar track background */
-[data-testid="stProgressBar"] {
-    background-color: #eef0f5 !important;
-    border-radius: 6px;
-    padding: 4px 10px;
-}
-/* Filled portion */
-[data-testid="stProgressBar"] > div > div {
-    background-color: #1F3864 !important;
-}
-/* Fetch log box used via st.markdown unsafe_allow_html */
-.fetch-log-box {
-    background: #1e2130;
-    border: 1px solid #3a4060;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-family: monospace;
-    font-size: 12px;
-    color: #e0e0e0 !important;
-    max-height: 180px;
-    overflow-y: auto;
-    margin-top: 6px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ── Excel colour constants ─────────────────────────────────────────────────────
+# ── Styling helpers ────────────────────────────────────────────────────────────
 DARK_BLUE  = "1F3864"
 MED_BLUE   = "2E75B6"
 LIGHT_BLUE = "BDD7EE"
@@ -73,7 +29,7 @@ def _font(bold=False, color="000000", size=11):
 def _align(h="center", v="center", wrap=False):
     return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
 
-# ── Order data loader ──────────────────────────────────────────────────────────
+# ── Data loading ───────────────────────────────────────────────────────────────
 def load_order_data(file):
     df = pd.read_excel(file, sheet_name="ORDER REQUEST", header=8)
     df = df[["DATE", "Name of OMC", "Product", "Depot", "Quantity", "Comments"]].copy()
@@ -84,16 +40,14 @@ def load_order_data(file):
     df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
     return df
 
-# ── P1 pivot ───────────────────────────────────────────────────────────────────
+# ── P1-style pivot builder ─────────────────────────────────────────────────────
 def build_p1_tables(df):
+    """Return list of dicts: {title, pivot_df} for each Depot/Product/Window."""
     tables = []
-    for depot in sorted(df["Depot"].dropna().unique()):
+    depots = sorted(df["Depot"].dropna().unique())
+    for depot in depots:
         for window, (d_lo, d_hi) in [("W1", (1, 15)), ("W2", (16, 31))]:
-            mask = (
-                (df["Depot"] == depot)
-                & (df["DATE"].dt.day >= d_lo)
-                & (df["DATE"].dt.day <= d_hi)
-            )
+            mask = (df["Depot"] == depot) & (df["DATE"].dt.day >= d_lo) & (df["DATE"].dt.day <= d_hi)
             sub = df[mask]
             if sub.empty:
                 continue
@@ -101,21 +55,24 @@ def build_p1_tables(df):
                 psub = sub[sub["Product"] == product]
                 if psub.empty:
                     continue
+                # For BOST depots keep sub-depot info (BOST-APD → APD etc.)
+                # Single depot tables: just OMC × quantity
                 pivot = psub.groupby("OMC")["Quantity"].sum().reset_index()
                 pivot = pivot.sort_values("OMC")
                 pivot.columns = ["OMC", "Quantity"]
                 pivot["TOTAL"] = pivot["Quantity"]
                 tables.append({
-                    "title":   f"{depot} {product} {window}",
-                    "depot":   depot,
+                    "title": f"{depot} {product} {window}",
+                    "depot": depot,
                     "product": product,
-                    "window":  window,
-                    "data":    pivot,
+                    "window": window,
+                    "data": pivot,
                 })
     return tables
 
-# ── Summary ────────────────────────────────────────────────────────────────────
+# ── Summary builder ────────────────────────────────────────────────────────────
 def build_summary(df):
+    """Collapse sub-depots for BOST, then build Depot × Product totals."""
     df2 = df.copy()
     df2["DepotGroup"] = df2["Depot"].apply(
         lambda x: "BOST" if str(x).upper().startswith("BOST") else x
@@ -131,9 +88,103 @@ def build_summary(df):
     pivot.columns.name = None
     return pivot
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAPPINGS
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── Excel writer ───────────────────────────────────────────────────────────────
+def write_p1_sheet(ws, tables):
+    row = 1
+    for tbl in tables:
+        data = tbl["data"]
+        title = tbl["title"]
+
+        # Title row
+        ws.cell(row, 1, title).font = _font(bold=True, color=HEADER_FG, size=12)
+        ws.cell(row, 1).fill = _fill(DARK_BLUE)
+        ws.cell(row, 1).alignment = _align()
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+        row += 1
+
+        # Header
+        for ci, label in enumerate(["OMC", "QUANTITY", "TOTAL"], 1):
+            c = ws.cell(row, ci, label)
+            c.font = _font(bold=True, color=HEADER_FG)
+            c.fill = _fill(MED_BLUE)
+            c.alignment = _align()
+            c.border = _border()
+        row += 1
+
+        start_data = row
+        for _, r in data.iterrows():
+            ws.cell(row, 1, r["OMC"]).alignment = _align(h="left")
+            ws.cell(row, 1).border = _border()
+            for ci, val in enumerate([r["Quantity"], r["TOTAL"]], 2):
+                c = ws.cell(row, ci, val)
+                c.number_format = "#,##0"
+                c.alignment = _align()
+                c.border = _border()
+            row += 1
+
+        # Grand total
+        gt_cell = ws.cell(row, 1, "GRAND TOTAL")
+        gt_cell.font = _font(bold=True)
+        gt_cell.fill = _fill(YELLOW)
+        gt_cell.border = _border()
+        gt_cell.alignment = _align(h="left")
+        for ci in [2, 3]:
+            col_letter = get_column_letter(ci)
+            c = ws.cell(row, ci, f"=SUM({col_letter}{start_data}:{col_letter}{row-1})")
+            c.font = _font(bold=True)
+            c.fill = _fill(YELLOW)
+            c.number_format = "#,##0"
+            c.alignment = _align()
+            c.border = _border()
+        row += 3  # gap
+
+    ws.column_dimensions["A"].width = 45
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 18
+
+
+def write_summary_sheet(ws, summary_df):
+    ws.cell(1, 1, "LOADING SUMMARY").font = _font(bold=True, color=HEADER_FG, size=14)
+    ws.cell(1, 1).fill = _fill(DARK_BLUE)
+    ws.cell(1, 1).alignment = _align()
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=5)
+
+    # Sub-header row (product labels)
+    headers = ["DEPOT", "AGO", "PMS", "LPG", "GRAND TOTAL"]
+    for ci, h in enumerate(headers, 1):
+        c = ws.cell(2, ci, h)
+        c.font = _font(bold=True, color=HEADER_FG)
+        c.fill = _fill(MED_BLUE)
+        c.alignment = _align()
+        c.border = _border()
+
+    # Data
+    for ri, row_data in summary_df.iterrows():
+        excel_row = ri + 3
+        is_total = str(row_data.iloc[0]) == "GRAND TOTAL"
+        fill = _fill(ORANGE) if is_total else _fill(GREEN) if ri % 2 == 0 else PatternFill()
+        for ci, val in enumerate(row_data, 1):
+            c = ws.cell(excel_row, ci, val)
+            c.border = _border()
+            c.alignment = _align(h="left" if ci == 1 else "center")
+            c.fill = fill
+            if ci > 1:
+                c.number_format = "#,##0"
+            if is_total:
+                c.font = _font(bold=True)
+
+    for col, width in zip(["A", "B", "C", "D", "E"], [20, 14, 14, 10, 16]):
+        ws.column_dimensions[col].width = width
+
+
+# ── Opening/Closing stock balance sheets ───────────────────────────────────────
+import re
+import threading
+import calendar as _cal
+import concurrent.futures
+import requests as _requests
+import pdfplumber
+
 DEPOT_MAP = {
     "ADINKRA STORAGE COMPANY GHANA LIMITED":         241,
     "AKWAABA LINK INVESTMENTS LIMITED":              20538,
@@ -182,7 +233,6 @@ PRODUCT_MAP = {
     "LPG": 28,
 }
 
-# BDC entity IDs (lngBDCId) — extend with your full list from the NPA system
 BDC_ENTITY_MAP = {
     "GOIL COMPANY LIMITED":             20900,
     "TOTAL PETROLEUM GHANA LIMITED":    20901,
@@ -208,18 +258,6 @@ _HTTP_HEADERS = {
     "Accept": "application/pdf,text/html,*/*;q=0.8",
 }
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PDF FETCH & PARSE
-# ═══════════════════════════════════════════════════════════════════════════════
-def _fetch_pdf_bytes(url: str, params: dict, timeout: int = 90):
-    try:
-        r = _requests.get(url, params=params, headers=_HTTP_HEADERS, timeout=timeout)
-        r.raise_for_status()
-        return r.content if r.content[:4] == b"%PDF" else None
-    except Exception:
-        return None
-
-
 _DESCRIPTIONS_SORTED = sorted([
     "Balance b/fwd", "Stock Take", "Sale",
     "Custody Transfer In", "Custody Transfer Out", "Product Outturn",
@@ -233,12 +271,19 @@ _SKIP_PFX = (
 )
 
 
-def _parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
+def _fetch_pdf_bytes(url, params, timeout=90):
+    try:
+        r = _requests.get(url, params=params, headers=_HTTP_HEADERS, timeout=timeout)
+        r.raise_for_status()
+        return r.content if r.content[:4] == b"%PDF" else None
+    except Exception:
+        return None
+
+
+def _parse_stock_transaction_pdf(pdf_bytes):
     def _skip(line):
         lo = line.strip().lower()
-        return lo.startswith(_SKIP_PFX) or bool(
-            re.match(r"^\d{1,2}\s+\w+,\s+\d{4}", line.strip())
-        )
+        return lo.startswith(_SKIP_PFX) or bool(re.match(r"^\d{1,2}\s+\w+,\s+\d{4}", line.strip()))
 
     def _pnum(s):
         s = s.strip()
@@ -253,10 +298,36 @@ def _parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
         line = line.strip()
         if not re.match(r"^\d{2}/\d{2}/\d{4}\b", line):
             return None
-        parts    = line.split()
-        date_tok = parts[0]
-        trans    = parts[1] if len(parts) > 1 else ""
-        rest     = line[len(date_tok):].strip()[len(trans):].strip()
+        parts = line.split()
+        date, trans = parts[0], (parts[1] if len(parts) > 1 else "")
+        rest = line[len(date):].strip()[len(trans):].strip()
+        desc = after = None
+        for d in _DESCRIPTIONS_SORTED:
+            if rest.lower().startswith(d.lower()):
+                desc, after = d, rest[len(d):].strip()
+                break
+        if desc is None or desc == "Balance b/fwd":
+            return None
+        nums = re.findall(r"\([\d,]+\)|[\d,]+", after)
+        if len(nums) < 2:
+            return None
+        vol, bal = _pnum(nums[-2]), _pnum(nums[-1])
+        trail = re.search(re.escape(nums[-2]) + r"\s+" + re.escape(nums[-1]) + r"\s*$", after)
+        acct = after[:trail.start()].strip() if trail else " ".join(after.split()[:-2])
+        return {"Date": date, "Trans #": trans, "Description": desc,
+                "Account": acct, "Volume": vol or 0, "Balance": bal or 0}
+
+    records = []
+    seen = set()
+
+    # ── CHANGE 1: also parse Balance b/fwd lines (needed for opening logic) ──
+    def _parse_line_full(line):
+        line = line.strip()
+        if not re.match(r"^\d{2}/\d{2}/\d{4}\b", line):
+            return None
+        parts = line.split()
+        date, trans = parts[0], (parts[1] if len(parts) > 1 else "")
+        rest = line[len(date):].strip()[len(trans):].strip()
         desc = after = None
         for d in _DESCRIPTIONS_SORTED:
             if rest.lower().startswith(d.lower()):
@@ -267,23 +338,12 @@ def _parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
         nums = re.findall(r"\([\d,]+\)|[\d,]+", after)
         if len(nums) < 2:
             return None
-        vol = _pnum(nums[-2])
-        bal = _pnum(nums[-1])
-        trail = re.search(
-            re.escape(nums[-2]) + r"\s+" + re.escape(nums[-1]) + r"\s*$", after
-        )
+        vol, bal = _pnum(nums[-2]), _pnum(nums[-1])
+        trail = re.search(re.escape(nums[-2]) + r"\s+" + re.escape(nums[-1]) + r"\s*$", after)
         acct = after[:trail.start()].strip() if trail else " ".join(after.split()[:-2])
-        return {
-            "Date":        date_tok,
-            "Trans #":     trans,
-            "Description": desc,
-            "Account":     acct,
-            "Volume":      vol or 0,
-            "Balance":     bal or 0,
-        }
+        return {"Date": date, "Trans #": trans, "Description": desc,
+                "Account": acct, "Volume": vol or 0, "Balance": bal or 0}
 
-    records = []
-    seen    = set()
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
@@ -294,7 +354,7 @@ def _parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
                     line = raw.strip()
                     if not line or _skip(line):
                         continue
-                    row = _parse_line(line)
+                    row = _parse_line_full(line)
                     if row:
                         key = (row["Date"], row["Trans #"], row["Description"], row["Volume"])
                         if key not in seen:
@@ -305,17 +365,17 @@ def _parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
     return records
 
 
-def _get_opening_closing(records: list) -> dict:
+def _get_opening_closing(records):
     """
-    Opening balance priority:
-      1. Find the first 'Balance b/fwd' record.
-         - If the very next record is a 'Stock Take', use that Stock Take's balance
-           (the stock take supersedes/corrects the carried-forward figure).
-         - Otherwise use the Balance b/fwd balance directly.
-      2. If there is no 'Balance b/fwd' at all, fall back to the first record's balance.
+    Opening balance logic (CHANGE 1):
+      - Find the first 'Balance b/fwd'.
+      - If the very next record is a 'Stock Take', use that Stock Take's balance
+        (it supersedes the b/fwd figure).
+      - Otherwise use the Balance b/fwd balance directly.
+      - If no Balance b/fwd exists, fall back to the first record's balance.
 
     Closing balance:
-      Balance from the very last transaction record.
+      Balance from the last transaction record.
     """
     if not records:
         return {"opening": 0, "closing": 0}
@@ -323,7 +383,6 @@ def _get_opening_closing(records: list) -> dict:
     opening = None
     for i, rec in enumerate(records):
         if rec["Description"] == "Balance b/fwd":
-            # Check whether the immediately following entry is a Stock Take
             if i + 1 < len(records) and records[i + 1]["Description"] == "Stock Take":
                 opening = records[i + 1]["Balance"]
             else:
@@ -337,141 +396,70 @@ def _get_opening_closing(records: list) -> dict:
     return {"opening": opening, "closing": closing}
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# EXCEL WRITERS
-# ═══════════════════════════════════════════════════════════════════════════════
-def write_p1_sheet(ws, tables):
-    row = 1
-    for tbl in tables:
-        data  = tbl["data"]
-        title = tbl["title"]
-        ws.cell(row, 1, title).font = _font(bold=True, color=HEADER_FG, size=12)
-        ws.cell(row, 1).fill        = _fill(DARK_BLUE)
-        ws.cell(row, 1).alignment   = _align()
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
-        row += 1
-        for ci, label in enumerate(["OMC", "QUANTITY", "TOTAL"], 1):
-            c = ws.cell(row, ci, label)
-            c.font      = _font(bold=True, color=HEADER_FG)
-            c.fill      = _fill(MED_BLUE)
-            c.alignment = _align()
-            c.border    = _border()
-        row += 1
-        start_data = row
-        for _, r in data.iterrows():
-            ws.cell(row, 1, r["OMC"]).alignment = _align(h="left")
-            ws.cell(row, 1).border = _border()
-            for ci, val in enumerate([r["Quantity"], r["TOTAL"]], 2):
-                c = ws.cell(row, ci, val)
-                c.number_format = "#,##0"
-                c.alignment     = _align()
-                c.border        = _border()
-            row += 1
-        gt = ws.cell(row, 1, "GRAND TOTAL")
-        gt.font = _font(bold=True); gt.fill = _fill(YELLOW)
-        gt.border = _border(); gt.alignment = _align(h="left")
-        for ci in [2, 3]:
-            cl = get_column_letter(ci)
-            c = ws.cell(row, ci, f"=SUM({cl}{start_data}:{cl}{row-1})")
-            c.font = _font(bold=True); c.fill = _fill(YELLOW)
-            c.number_format = "#,##0"; c.alignment = _align(); c.border = _border()
-        row += 3
-    ws.column_dimensions["A"].width = 45
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 18
-
-
-def write_summary_sheet(ws, summary_df):
-    ws.cell(1, 1, "LOADING SUMMARY").font = _font(bold=True, color=HEADER_FG, size=14)
-    ws.cell(1, 1).fill = _fill(DARK_BLUE); ws.cell(1, 1).alignment = _align()
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=5)
-    for ci, h in enumerate(["DEPOT", "AGO", "PMS", "LPG", "GRAND TOTAL"], 1):
-        c = ws.cell(2, ci, h)
-        c.font = _font(bold=True, color=HEADER_FG); c.fill = _fill(MED_BLUE)
-        c.alignment = _align(); c.border = _border()
-    for ri, row_data in summary_df.iterrows():
-        excel_row = ri + 3
-        is_total  = str(row_data.iloc[0]) == "GRAND TOTAL"
-        fill = (
-            _fill(ORANGE) if is_total
-            else _fill(GREEN) if ri % 2 == 0
-            else PatternFill()
-        )
-        for ci, val in enumerate(row_data, 1):
-            c = ws.cell(excel_row, ci, val)
-            c.border = _border()
-            c.alignment = _align(h="left" if ci == 1 else "center")
-            c.fill = fill
-            if ci > 1:
-                c.number_format = "#,##0"
-            if is_total:
-                c.font = _font(bold=True)
-    for col, width in zip(["A","B","C","D","E"], [20,14,14,10,16]):
-        ws.column_dimensions[col].width = width
-
-
-def _write_stock_balance_sheet(ws, df: pd.DataFrame, title: str, balance_col: str, month_label: str):
+def write_stock_balance_sheet(ws, df, title, balance_col, month_label):
     num_cols = 4
-
-    # Title banner
-    ws.cell(1, 1, title).font    = _font(bold=True, color=HEADER_FG, size=14)
-    ws.cell(1, 1).fill           = _fill(DARK_BLUE)
-    ws.cell(1, 1).alignment      = _align()
+    ws.cell(1, 1, title).font = _font(bold=True, color=HEADER_FG, size=14)
+    ws.cell(1, 1).fill = _fill(DARK_BLUE)
+    ws.cell(1, 1).alignment = _align()
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
 
     ws.cell(2, 1, f"Period: {month_label}").font = _font(bold=False, color=HEADER_FG, size=11)
-    ws.cell(2, 1).fill      = _fill(MED_BLUE)
+    ws.cell(2, 1).fill = _fill(MED_BLUE)
     ws.cell(2, 1).alignment = _align(h="left")
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_cols)
 
-    # Column headers
     for ci, h in enumerate(["BDC", "DEPOT", "PRODUCT", "BALANCE (LT/KG)"], 1):
         c = ws.cell(3, ci, h)
-        c.font = _font(bold=True, color=HEADER_FG); c.fill = _fill(MED_BLUE)
-        c.alignment = _align(); c.border = _border()
+        c.font = _font(bold=True, color=HEADER_FG)
+        c.fill = _fill(MED_BLUE)
+        c.alignment = _align()
+        c.border = _border()
 
     if df.empty:
-        ws.cell(4, 1, "No data — verify BDC entity IDs and API connectivity.")
+        ws.cell(4, 1, "No data available — check BDC/Depot/Product combinations and API connectivity.")
         ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=num_cols)
-        for col, w in zip(["A","B","C","D"], [40,40,12,20]):
-            ws.column_dimensions[col].width = w
+        for col, width in zip(["A", "B", "C", "D"], [40, 40, 12, 20]):
+            ws.column_dimensions[col].width = width
         return
 
-    # Data rows
     row = 4
-    alt = False
+    alternating = False
     for _, r in df.iterrows():
-        row_fill = _fill(LIGHT_BLUE) if alt else PatternFill()
+        fill_row = _fill(LIGHT_BLUE) if alternating else PatternFill()
         for ci, val in enumerate(
-            [r.get("BDC",""), r.get("Depot",""), r.get("Product",""), r.get(balance_col, 0)],
-            1,
+            [r.get("BDC", ""), r.get("Depot", ""), r.get("Product", ""), r.get(balance_col, 0)], 1
         ):
             c = ws.cell(row, ci, val)
-            c.border = _border(); c.fill = row_fill
+            c.border = _border()
+            c.fill = fill_row
             if ci < 4:
-                c.alignment = _align(h="left"); c.font = _font(size=10)
+                c.alignment = _align(h="left")
+                c.font = _font(size=10)
             else:
-                c.alignment = _align(); c.number_format = "#,##0"; c.font = _font(size=10)
-        alt = not alt
+                c.alignment = _align()
+                c.number_format = "#,##0"
+                c.font = _font(size=10)
+        alternating = not alternating
         row += 1
 
-    # Product totals section
     row += 1
-    ws.cell(row, 1, "PRODUCT TOTALS").font    = _font(bold=True, color=HEADER_FG)
-    ws.cell(row, 1).fill      = _fill(DARK_BLUE)
+    ws.cell(row, 1, "PRODUCT TOTALS").font = _font(bold=True, color=HEADER_FG)
+    ws.cell(row, 1).fill = _fill(DARK_BLUE)
     ws.cell(row, 1).alignment = _align()
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=num_cols)
     row += 1
 
-    for ci, h in enumerate(["PRODUCT","TOTAL BALANCE (LT/KG)","BDC COUNT","DEPOT COUNT"], 1):
+    for ci, h in enumerate(["PRODUCT", "TOTAL BALANCE (LT/KG)", "BDC COUNT", "DEPOT COUNT"], 1):
         c = ws.cell(row, ci, h)
-        c.font = _font(bold=True, color=HEADER_FG); c.fill = _fill(MED_BLUE)
-        c.alignment = _align(); c.border = _border()
+        c.font = _font(bold=True, color=HEADER_FG)
+        c.fill = _fill(MED_BLUE)
+        c.alignment = _align()
+        c.border = _border()
     row += 1
 
     grand_grand = 0.0
     for product in sorted(df["Product"].unique()):
-        sub       = df[df["Product"] == product]
+        sub = df[df["Product"] == product]
         total_bal = float(sub[balance_col].sum())
         grand_grand += total_bal
         for ci, val in enumerate(
@@ -479,26 +467,28 @@ def _write_stock_balance_sheet(ws, df: pd.DataFrame, title: str, balance_col: st
         ):
             c = ws.cell(row, ci, val)
             c.border = _border()
-            c.font   = _font(bold=(ci == 1))
+            c.font = _font(bold=(ci == 1))
             c.alignment = _align(h="left" if ci == 1 else "center")
             if ci == 2:
                 c.number_format = "#,##0"
         row += 1
 
-    # Grand total row
     for ci in range(1, 5):
         c = ws.cell(row, ci)
-        c.fill = _fill(ORANGE); c.border = _border(); c.font = _font(bold=True)
+        c.fill = _fill(ORANGE)
+        c.border = _border()
+        c.font = _font(bold=True)
     ws.cell(row, 1, "GRAND TOTAL").alignment = _align(h="left")
     gt_val = ws.cell(row, 2, grand_grand)
-    gt_val.number_format = "#,##0"; gt_val.alignment = _align()
+    gt_val.number_format = "#,##0"
+    gt_val.alignment = _align()
 
-    for col, w in zip(["A","B","C","D"], [38,42,12,22]):
-        ws.column_dimensions[col].width = w
+    for col, width in zip(["A", "B", "C", "D"], [38, 42, 12, 22]):
+        ws.column_dimensions[col].width = width
 
 
 def generate_excel(tables, summary_df, month_label, opening_df=None, closing_df=None):
-    wb    = Workbook()
+    wb = Workbook()
     ws_p1 = wb.active
     ws_p1.title = "P1"
     write_p1_sheet(ws_p1, tables)
@@ -507,14 +497,14 @@ def generate_excel(tables, summary_df, month_label, opening_df=None, closing_df=
     write_summary_sheet(ws_sum, summary_df)
 
     ws_open = wb.create_sheet("OPENING STOCK BALANCE")
-    _write_stock_balance_sheet(
+    write_stock_balance_sheet(
         ws_open,
         opening_df if opening_df is not None else pd.DataFrame(),
         "OPENING STOCK BALANCE", "Opening (LT)", month_label,
     )
 
     ws_close = wb.create_sheet("CLOSING STOCK BALANCE")
-    _write_stock_balance_sheet(
+    write_stock_balance_sheet(
         ws_close,
         closing_df if closing_df is not None else pd.DataFrame(),
         "CLOSING STOCK BALANCE", "Closing (LT)", month_label,
@@ -526,14 +516,45 @@ def generate_excel(tables, summary_df, month_label, opening_df=None, closing_df=
     return buf
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# STREAMLIT UI
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── Streamlit UI ───────────────────────────────────────────────────────────────
 st.title("📦 Order Request Report Generator")
-st.markdown(
-    "Upload an Excel file with an **ORDER REQUEST** sheet to generate "
-    "P1, Summary, Opening & Closing Stock reports."
-)
+st.markdown("Upload an Excel file with an **ORDER REQUEST** sheet to generate P1 & Summary reports.")
+
+# ── CHANGE 2: Fix white-on-white progress bar ──────────────────────────────────
+st.markdown("""
+<style>
+/* Force progress bar text to be dark and visible */
+[data-testid="stProgressBar"] p,
+[data-testid="stProgressBar"] span,
+[data-testid="stProgressBar"] label {
+    color: #1a1a1a !important;
+    font-weight: 600 !important;
+}
+/* Give the progress container a light grey background */
+[data-testid="stProgressBar"] {
+    background-color: #eef0f5 !important;
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+/* Dark blue filled bar */
+[data-testid="stProgressBar"] > div > div {
+    background-color: #1F3864 !important;
+}
+/* Fetch log box — dark background so white text is readable */
+.fetch-log-box {
+    background: #1e2130;
+    border: 1px solid #3a4060;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #e0e0e0 !important;
+    max-height: 180px;
+    overflow-y: auto;
+    margin-top: 6px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 uploaded = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
 
@@ -549,10 +570,9 @@ if uploaded:
     df["Month"] = df["DATE"].dt.month
 
     years = sorted(df["Year"].unique(), reverse=True)
-    MONTHS = {
-        1:"January",  2:"February", 3:"March",    4:"April",
-        5:"May",      6:"June",     7:"July",      8:"August",
-        9:"September",10:"October", 11:"November", 12:"December",
+    months = {
+        1:"January",2:"February",3:"March",4:"April",5:"May",6:"June",
+        7:"July",8:"August",9:"September",10:"October",11:"November",12:"December"
     }
 
     col1, col2 = st.columns(2)
@@ -560,10 +580,11 @@ if uploaded:
         sel_year = st.selectbox("Select Year", years)
     with col2:
         avail_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
-        sel_month    = st.selectbox("Select Month", avail_months, format_func=lambda m: MONTHS[m])
+        sel_month = st.selectbox("Select Month", avail_months, format_func=lambda m: months[m])
 
-    month_label = f"{MONTHS[sel_month]} {sel_year}"
-    filtered    = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
+    month_label = f"{months[sel_month]} {sel_year}"
+
+    filtered = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
 
     if filtered.empty:
         st.warning("No data found for the selected period.")
@@ -571,128 +592,71 @@ if uploaded:
 
     w1 = filtered[filtered["DATE"].dt.day <= 15]
     w2 = filtered[filtered["DATE"].dt.day >= 16]
-    st.success(
-        f"**{month_label}** — {len(filtered):,} records | W1: {len(w1):,} | W2: {len(w2):,}"
-    )
 
-    tables     = build_p1_tables(filtered)
+    st.success(f"**{month_label}** — {len(filtered):,} records | W1: {len(w1):,} | W2: {len(w2):,}")
+
+    # ── Tabs ──────────────────────────────────────────────────────────────────
+    tab1, tab2, tab3 = st.tabs(["📋 P1 — Depot Breakdown", "📊 Summary", "⬇️ Export to Excel"])
+
+    tables = build_p1_tables(filtered)
     summary_df = build_summary(filtered)
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📋 P1 — Depot Breakdown",
-        "📊 Summary",
-        "📂 Opening Stock Balance",
-        "📂 Closing Stock Balance",
-        "⬇️ Export to Excel",
-    ])
-
-    # ── Tab 1: P1 ─────────────────────────────────────────────
     with tab1:
         st.subheader(f"P1 — Depot / Product / Window Breakdown ({month_label})")
         if not tables:
             st.info("No data to display.")
         else:
-            for depot in sorted(set(t["depot"] for t in tables)):
+            # Group by depot for cleaner display
+            depots_in_data = sorted(set(t["depot"] for t in tables))
+            for depot in depots_in_data:
                 with st.expander(f"🏭 {depot}", expanded=True):
                     depot_tables = [t for t in tables if t["depot"] == depot]
                     cols = st.columns(min(len(depot_tables), 2))
                     for i, tbl in enumerate(depot_tables):
                         with cols[i % 2]:
                             st.markdown(f"**{tbl['title']}**")
-                            display = tbl["data"][["OMC","Quantity"]].copy()
-                            display.columns = ["OMC","Quantity (L)"]
+                            display = tbl["data"][["OMC", "Quantity"]].copy()
+                            display.columns = ["OMC", "Quantity (L)"]
                             display["Quantity (L)"] = display["Quantity (L)"].apply(lambda x: f"{x:,.0f}")
                             total = tbl["data"]["Quantity"].sum()
-                            display = pd.concat(
-                                [display, pd.DataFrame([{"OMC":"GRAND TOTAL","Quantity (L)":f"{total:,.0f}"}])],
-                                ignore_index=True,
-                            )
+                            total_row = pd.DataFrame([{"OMC": "GRAND TOTAL", "Quantity (L)": f"{total:,.0f}"}])
+                            display = pd.concat([display, total_row], ignore_index=True)
                             st.dataframe(display, use_container_width=True, hide_index=True)
 
-    # ── Tab 2: Summary ────────────────────────────────────────
     with tab2:
         st.subheader(f"Loading Summary — {month_label}")
         display_sum = summary_df.copy()
-        for col in ["AGO","PMS","LPG","GRAND TOTAL"]:
+        for col in ["AGO", "PMS", "LPG", "GRAND TOTAL"]:
             if col in display_sum.columns:
                 display_sum[col] = display_sum[col].apply(
                     lambda x: f"{int(x):,}" if pd.notna(x) and x != 0 else "-"
                 )
-        col_rename = {"DepotGroup":"DEPOT"} if "DepotGroup" in display_sum.columns else {}
-        st.dataframe(
-            display_sum.rename(columns=col_rename),
-            use_container_width=True, hide_index=True,
-        )
+        col_rename = {"DepotGroup": "DEPOT"} if "DepotGroup" in display_sum.columns else {}
+        st.dataframe(display_sum.rename(columns=col_rename), use_container_width=True, hide_index=True)
 
-    # ── Tab 3: Opening Stock Balance ──────────────────────────
     with tab3:
-        st.subheader(f"Opening Stock Balance — {month_label}")
-        st.info(
-            "**Opening** = first *Balance b/fwd* value at month start — "
-            "or the *Stock Take* that immediately follows it if one exists "
-            "(stock take supersedes the carried-forward figure). "
-            "Fetch stock balances in the **Export** tab first."
-        )
-        sv = st.session_state.get("stock_balance_df")
-        if sv is not None and not sv.empty:
-            ob = sv[["BDC","Depot","Product","Opening (LT)"]].copy()
-            ob["Opening (LT)"] = ob["Opening (LT)"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(ob, use_container_width=True, hide_index=True)
-            st.markdown("**Product Totals**")
-            ps = sv.groupby("Product")["Opening (LT)"].sum().reset_index()
-            ps.columns = ["Product","Total Opening (LT)"]
-            ps["Total Opening (LT)"] = ps["Total Opening (LT)"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(ps, use_container_width=True, hide_index=True)
-        else:
-            st.warning("No stock balance data yet — go to **⬇️ Export to Excel** and click **Fetch Stock Balances**.")
-
-    # ── Tab 4: Closing Stock Balance ──────────────────────────
-    with tab4:
-        st.subheader(f"Closing Stock Balance — {month_label}")
-        st.info(
-            "**Closing** = balance from the last transaction entry at month end. "
-            "Fetch stock balances in the **Export** tab first."
-        )
-        sv = st.session_state.get("stock_balance_df")
-        if sv is not None and not sv.empty:
-            cb = sv[["BDC","Depot","Product","Closing (LT)"]].copy()
-            cb["Closing (LT)"] = cb["Closing (LT)"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(cb, use_container_width=True, hide_index=True)
-            st.markdown("**Product Totals**")
-            ps = sv.groupby("Product")["Closing (LT)"].sum().reset_index()
-            ps.columns = ["Product","Total Closing (LT)"]
-            ps["Total Closing (LT)"] = ps["Total Closing (LT)"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(ps, use_container_width=True, hide_index=True)
-        else:
-            st.warning("No stock balance data yet — go to **⬇️ Export to Excel** and click **Fetch Stock Balances**.")
-
-    # ── Tab 5: Export ─────────────────────────────────────────
-    with tab5:
         st.subheader("Export Report to Excel")
 
-        # Step 1 — Fetch
-        st.markdown("#### Step 1 — Fetch Opening & Closing Stock Balances")
-        st.markdown(
-            "Queries the NPA Stock Transaction API for every BDC × Depot × Product "
-            "over the full calendar month. Opening = first Balance b/fwd (or Stock Take "
-            "if immediately following). Closing = last balance entry."
-        )
+        # ── Stock balance fetch section ────────────────────────────────────────
+        st.markdown("#### Step 1 — Fetch Opening & Closing Stock Balances (optional)")
+        st.markdown("Queries the NPA Stock Transaction API for each BDC × Depot × Product over the full calendar month.")
 
         api_user_id = st.text_input(
             "NPA API User ID (lngUserId)",
             value=NPA_USER_ID,
-            help="Passed as lngUserId in every API request.",
+            help="The user ID passed to the NPA Stock Transaction API.",
         )
 
-        with st.expander("⚙️ Limit fetch scope — blank = fetch all", expanded=False):
-            sel_bdcs     = st.multiselect("BDCs",     list(BDC_ENTITY_MAP.keys()), key="exp_bdcs")
-            sel_depots   = st.multiselect("Depots",   list(DEPOT_MAP.keys()),      key="exp_depots")
-            sel_products = st.multiselect("Products", list(PRODUCT_MAP.keys()),    key="exp_prods")
+        with st.expander("⚙️ Advanced: Limit fetch scope (optional)", expanded=False):
+            sel_bdcs     = st.multiselect("BDCs (blank = all)",     list(BDC_ENTITY_MAP.keys()), key="exp_bdcs")
+            sel_depots   = st.multiselect("Depots (blank = all)",   list(DEPOT_MAP.keys()),      key="exp_depots")
+            sel_products = st.multiselect("Products (blank = all)", list(PRODUCT_MAP.keys()),    key="exp_prods")
 
         fetch_bdcs     = sel_bdcs     or list(BDC_ENTITY_MAP.keys())
         fetch_depots   = sel_depots   or list(DEPOT_MAP.keys())
         fetch_products = sel_products or list(PRODUCT_MAP.keys())
-        total_combos   = len(fetch_bdcs) * len(fetch_depots) * len(fetch_products)
+
+        total_combos = len(fetch_bdcs) * len(fetch_depots) * len(fetch_products)
         st.caption(f"Will query **{total_combos:,}** BDC × Depot × Product combinations.")
 
         if st.button("📡 Fetch Stock Balances", key="fetch_stock_bal"):
@@ -706,14 +670,14 @@ if uploaded:
                 for dep_n in fetch_depots
                 for prod_n in fetch_products
             ]
-            total_t  = len(tasks)
-            results  = []
-            done     = [0]
-            lock     = threading.Lock()
+            total_t = len(tasks)
+            results = []
+            done    = [0]
+            lock    = threading.Lock()
 
-            prog_bar = st.progress(0, text="Starting fetch…")
-            log_box  = st.empty()
-            log_lines: list = []
+            prog_bar  = st.progress(0, text="Starting fetch…")
+            log_box   = st.empty()
+            log_lines = []
 
             def _run(args):
                 bdc_n, bdc_id, dep_n, dep_id, prod_n, prod_id = args
@@ -741,66 +705,49 @@ if uploaded:
                                 "Transactions": len(recs),
                             })
                         icon = "✅"
-                        note = (
-                            f"{prod_n} @ {dep_n[:28]} — "
-                            f"open: {bal['opening']:,}  close: {bal['closing']:,}"
-                        )
+                        note = f"{prod_n} @ {dep_n[:28]} — open: {bal['opening']:,}  close: {bal['closing']:,}"
                     else:
                         icon = "⚠️"
-                        note = f"{prod_n} @ {dep_n[:28]} — PDF received but no records parsed"
+                        note = f"{prod_n} @ {dep_n[:28]} — PDF ok but no records parsed"
                 else:
                     icon = "○"
-                    note = f"{prod_n} @ {dep_n[:28]} — no data / no PDF"
+                    note = f"{prod_n} @ {dep_n[:28]} — no data"
 
                 with lock:
                     done[0] += 1
                     pct = done[0] / total_t
-                    prog_bar.progress(
-                        pct,
-                        text=f"Fetching… {done[0]:,} / {total_t:,}  ({pct*100:.0f}%)",
-                    )
-                    log_lines.append(f"<span style='color:#e0e0e0'>{icon} [{bdc_n}] {note}</span>")
+                    prog_bar.progress(pct, text=f"Fetching… {done[0]:,} / {total_t:,} ({pct*100:.0f}%)")
+                    log_lines.append(f"{icon} [{bdc_n}] {note}")
                     log_box.markdown(
-                        "<div class='fetch-log-box'>"
-                        + "<br>".join(log_lines[-15:])
-                        + "</div>",
+                        "<div class='fetch-log-box'>" + "<br>".join(log_lines[-15:]) + "</div>",
                         unsafe_allow_html=True,
                     )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
                 list(ex.map(_run, tasks))
 
-            prog_bar.progress(1.0, text=f"✅ Complete — {len(results):,} combinations returned data")
+            prog_bar.progress(1.0, text=f"✅ Complete — {len(results):,} records with data")
 
             if results:
-                stock_df = (
-                    pd.DataFrame(results)
-                    .sort_values(["BDC","Depot","Product"])
-                    .reset_index(drop=True)
-                )
+                stock_df = pd.DataFrame(results).sort_values(["BDC", "Depot", "Product"]).reset_index(drop=True)
                 st.session_state.stock_balance_df = stock_df
-                st.success(
-                    f"✅ Retrieved balances for **{len(stock_df):,}** "
-                    "BDC / Depot / Product combinations."
-                )
+                st.success(f"✅ Retrieved balance data for **{len(stock_df):,}** BDC/Depot/Product combinations.")
             else:
                 st.session_state.stock_balance_df = pd.DataFrame()
                 st.warning(
-                    "⚠️ No data returned. Verify that the BDC entity IDs in `BDC_ENTITY_MAP` "
-                    "match those registered in the NPA system and that the selected month "
-                    "has transactions. The Excel will still export with empty balance sheets."
+                    "⚠️ No data returned. Verify BDC entity IDs in `BDC_ENTITY_MAP` match the NPA system, "
+                    "and that there were transactions in the selected month. "
+                    "The Excel will still export with empty Opening/Closing sheets."
                 )
 
         st.markdown("---")
 
-        # Step 2 — Generate Excel
+        # ── Generate Excel ─────────────────────────────────────────────────────
         st.markdown("#### Step 2 — Generate & Download Excel Report")
-        st.markdown(
-            "Produces the Excel with **P1**, **SUMMARY**, "
-            "**OPENING STOCK BALANCE** and **CLOSING STOCK BALANCE** sheets."
-        )
+        st.markdown("Click below to generate and download the Excel report with **P1**, **SUMMARY**, **OPENING STOCK BALANCE** and **CLOSING STOCK BALANCE** sheets.")
 
-        stock_df = st.session_state.get("stock_balance_df")
+        stock_df = st.session_state.get("stock_balance_df", None)
+
         if stock_df is not None and not stock_df.empty:
             st.caption(
                 f"Stock data loaded: **{len(stock_df):,}** records · "
@@ -808,25 +755,20 @@ if uploaded:
                 f"Closing total: **{stock_df['Closing (LT)'].sum():,.0f} LT**"
             )
         else:
-            st.caption(
-                "ℹ️ Stock balances not yet fetched — "
-                "Opening & Closing sheets will be empty in the Excel."
-            )
+            st.caption("ℹ️ Stock balance not yet fetched — Opening & Closing sheets in the Excel will be empty.")
 
         if st.button("📥 Generate Excel Report", type="primary"):
             with st.spinner("Building Excel file…"):
                 if stock_df is not None and not stock_df.empty:
-                    opening_df = stock_df[["BDC","Depot","Product","Opening (LT)"]].copy()
-                    closing_df = stock_df[["BDC","Depot","Product","Closing (LT)"]].copy()
+                    opening_df = stock_df[["BDC", "Depot", "Product", "Opening (LT)"]].copy()
+                    closing_df = stock_df[["BDC", "Depot", "Product", "Closing (LT)"]].copy()
                 else:
-                    opening_df = pd.DataFrame(columns=["BDC","Depot","Product","Opening (LT)"])
-                    closing_df = pd.DataFrame(columns=["BDC","Depot","Product","Closing (LT)"])
+                    opening_df = pd.DataFrame(columns=["BDC", "Depot", "Product", "Opening (LT)"])
+                    closing_df = pd.DataFrame(columns=["BDC", "Depot", "Product", "Closing (LT)"])
 
-                excel_buf = generate_excel(
-                    tables, summary_df, month_label, opening_df, closing_df
-                )
+                excel_buf = generate_excel(tables, summary_df, month_label, opening_df, closing_df)
 
-            fname = f"Report_{MONTHS[sel_month]}_{sel_year}.xlsx"
+            fname = f"Report_{months[sel_month]}_{sel_year}.xlsx"
             st.download_button(
                 label=f"⬇️ Download {fname}",
                 data=excel_buf,
