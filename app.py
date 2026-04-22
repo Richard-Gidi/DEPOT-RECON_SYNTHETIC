@@ -207,33 +207,68 @@ def _pnum(s):
         return None
 
 
-def _parse_txn_line(line):
+# Matches any line that starts with DD/MM/YYYY followed by whitespace
+_DATE_LINE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)")
+
+# Matches the two trailing numbers (volume + balance) at the end of a ledger line.
+# Balance may be negative e.g. (8,453)
+_TAIL_RE = re.compile(
+    r"(\([\d,]+\)|[\d,]+)\s+(\([\d,]+\)|[\d,]+)\s*$"
+)
+
+
+def _parse_any_date_line(line: str) -> dict | None:
+    """
+    Parse ANY dated ledger line, including 'Balance b/fwd'.
+
+    Format:  DD/MM/YYYY  TRANS#  DESCRIPTION  [ACCOUNT]  VOLUME  BALANCE
+
+    The tricky case is 'Balance b/fwd': the regex captures 'Balance' as the
+    trans token and 'b/fwd 93,547 93,547' as rest.  We therefore do a
+    two-pass search:
+      Pass 1 — try matching descriptions against `rest`  (normal rows)
+      Pass 2 — try matching against `trans + ' ' + rest` (catches b/fwd)
+    The first pass that yields a known description wins.
+    """
     line = line.strip()
-    if not re.match(r"^\d{2}/\d{2}/\d{4}\b", line):
+    m = _DATE_LINE_RE.match(line)
+    if not m:
         return None
-    parts = line.split()
-    date, trans = parts[0], (parts[1] if len(parts) > 1 else "")
-    rest = line[len(date):].strip()[len(trans):].strip()
-    desc = after = None
-    for d in DESCRIPTIONS:
-        if rest.lower().startswith(d.lower()):
-            desc, after = d, rest[len(d):].strip()
-            break
-    if desc is None:
-        return None
-    nums = re.findall(r"\([\d,]+\)|[\d,]+", after)
-    if len(nums) < 2:
-        return None
-    vol, bal = _pnum(nums[-2]), _pnum(nums[-1])
-    trail = re.search(re.escape(nums[-2]) + r"\s+" + re.escape(nums[-1]) + r"\s*$", after)
-    acct  = after[:trail.start()].strip() if trail else " ".join(after.split()[:-2])
-    return {
-        "Date": date, "Trans #": trans, "Description": desc,
-        "Account": acct, "Volume": vol or 0, "Balance": bal or 0
-    }
+
+    date  = m.group(1)
+    trans = m.group(2)
+    rest  = m.group(3).strip()
+
+    for search_str in (rest, trans + " " + rest):
+        tail = _TAIL_RE.search(search_str)
+        if not tail:
+            continue
+        vol = _pnum(tail.group(1))
+        bal = _pnum(tail.group(2))
+        if vol is None or bal is None:
+            continue
+        middle = search_str[: tail.start()].strip()
+        for d in DESCRIPTIONS:
+            if middle.lower().startswith(d.lower()):
+                acct       = middle[len(d):].strip()
+                real_trans = "" if d == "Balance b/fwd" else trans
+                return {
+                    "Date":        date,
+                    "Trans #":     real_trans,
+                    "Description": d,
+                    "Account":     acct,
+                    "Volume":      vol,
+                    "Balance":     bal,
+                }
+
+    return None
 
 
 def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
+    """
+    Parse all ledger lines from the PDF, INCLUDING 'Balance b/fwd'.
+    Returns list sorted by appearance order (page → line).
+    """
     records = []
     seen    = set()
     try:
@@ -246,7 +281,7 @@ def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
                     line = raw.strip()
                     if not line or _skip(line):
                         continue
-                    row = _parse_txn_line(line)
+                    row = _parse_any_date_line(line)
                     if row:
                         key = (row["Date"], row["Trans #"], row["Description"], row["Volume"])
                         if key not in seen:
@@ -268,15 +303,25 @@ def fetch_oilcorp_stock_balances(
     Fetch the stock transaction PDF for OILCORP ENERGIA for the given month,
     depot and product.  Returns:
         {
-          "opening": float | None,   # Balance b/fwd at start of month
-          "closing": float | None,   # Last running balance in the ledger
-          "records": list,           # Full parsed transaction list
+          "opening": float | None,   # Balance b/fwd carried forward into this month
+          "closing": float | None,   # Last running balance recorded in the ledger
+          "records": list,
           "error":   str | None,
         }
+
+    Opening balance rules
+    ---------------------
+    The PDF always contains a "Balance b/fwd" row dated the last day of the
+    *previous* month (e.g. 31/12/2025 for a January query).  We grab its
+    Balance column — that is the opening figure for our month.
+
+    Closing balance rules
+    ---------------------
+    Walk the records in reverse and take the Balance of the last row that is
+    NOT a b/fwd row.  If the only record present is the b/fwd itself (e.g. no
+    activity during the month), we fall back to that same balance — the account
+    opened and closed at the same value.
     """
-    # Start of month → we need one day earlier to catch the b/fwd
-    # But the API uses the month range to get the ledger;
-    # "Balance b/fwd" is always the first record and carries the opening figure.
     import calendar
     last_day  = calendar.monthrange(year, month)[1]
     start_str = f"{month:02d}/01/{year}"
@@ -299,21 +344,22 @@ def fetch_oilcorp_stock_balances(
     if not records:
         return {"opening": None, "closing": None, "records": [], "error": "No transactions parsed"}
 
-    # Opening stock = Balance column of the first "Balance b/fwd" row
+    # ── Opening: first Balance b/fwd row ─────────────────────
     opening = None
     for r in records:
         if r["Description"] == "Balance b/fwd":
             opening = float(r["Balance"])
             break
 
-    # Closing stock = Balance column of the very last transaction row
-    # (the final running balance before "Actual Stock Balance" summary)
+    # ── Closing: last non-b/fwd row; fallback to last row if none ────────────
     closing = None
     for r in reversed(records):
         if r["Description"] != "Balance b/fwd":
             closing = float(r["Balance"])
             break
-    # Fallback: last record regardless
+
+    # Edge case: only the b/fwd row exists (no activity during the month)
+    # → opening and closing are the same value
     if closing is None and records:
         closing = float(records[-1]["Balance"])
 
