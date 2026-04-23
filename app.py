@@ -1134,6 +1134,106 @@ MONTHS = {
     9:"September",10:"October",11:"November",12:"December"
 }
 
+# ── Pre-configured depot list ─────────────────────────────────
+DEFAULT_DEPOTS = [
+    "BOST GLOBAL DEPOT",
+    "CHASE PETROLEUM - TEMA",
+    "PETROLEUM HUB LIMITED",
+    "PETROLEUM WARE HOUSE AND SUPPLIES LIMITED",
+    "PLATON OIL GAS GHANA LIMITED",
+    "QUANTUM LPG LOGISTICS LIMITED",
+    "QUANTUM OIL TERMINAL LIMITED",
+    "SENTUO OIL REFINERY - TEMA",
+    "TEMA FUEL COMPANY (TFC)",
+    "TEMA MULTI PRODUCTS (TMPT)",
+    "TEMA OIL REFINERY (TOR)",
+    "TEMA OIL TERMINAL PLC",
+    "VANA ENERGY LIMITED TEMA",
+]
+
+def _init_depot_list():
+    """Initialise session-state depot list from defaults on first run."""
+    if "configured_depots" not in st.session_state:
+        st.session_state["configured_depots"] = list(DEFAULT_DEPOTS)
+
+# ── Extra CSS for depot manager ───────────────────────────────
+st.markdown("""
+<style>
+/* ── Depot manager panel ───────────────────────────────── */
+.depot-manager {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.2rem;
+}
+.depot-manager-header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0.9rem 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.depot-manager-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+.depot-count-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    background: rgba(47,129,247,0.15);
+    color: var(--accent-blue);
+    border: 1px solid rgba(47,129,247,0.25);
+    border-radius: 20px;
+    padding: 0.15rem 0.6rem;
+}
+.depot-list-body {
+    padding: 0.8rem 1.2rem 1rem 1.2rem;
+}
+.depot-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.87rem;
+    color: var(--text-primary);
+    transition: background 0.12s;
+}
+.depot-row:last-child { border-bottom: none; }
+.depot-row:hover { background: rgba(255,255,255,0.02); border-radius: 4px; }
+.depot-row-index {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    min-width: 20px;
+    text-align: right;
+}
+.depot-check { color: var(--accent-green); font-size: 0.85rem; }
+.depot-name { flex: 1; }
+.add-depot-zone {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    margin-top: 0.5rem;
+}
+.add-depot-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Hero Header ───────────────────────────────────────────────
 st.markdown("""
 <div class="hero-header">
@@ -1285,6 +1385,8 @@ with tab2:
 
 # ─── TAB 3: STOCK BALANCES ───────────────────────────────────
 with tab3:
+    _init_depot_list()
+
     st.markdown(f'<div class="tab-heading">OILCORP Stock Balances</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="tab-subhead">NPA stock transaction ledger for OILCORP ENERGIA LIMITED — {month_label}</div>', unsafe_allow_html=True)
 
@@ -1295,20 +1397,93 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
 
-    available_depots = sorted(DEPOT_MAP.keys())
-    if not available_depots:
-        st.error("No depots found in your `.env` file. Ensure DEPOT_* keys are configured correctly.")
-        st.stop()
+    # ── Two-column layout: depot manager LEFT, controls RIGHT ────
+    col_manager, col_controls = st.columns([5, 4], gap="large")
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        selected_depots = st.multiselect(
-            "Filter Depots (blank = all)",
-            available_depots,
-            default=[],
-            key="oilcorp_depots",
-        )
-    with col_b:
+    with col_manager:
+        # ── Depot manager ─────────────────────────────────────
+        configured = st.session_state["configured_depots"]
+
+        n_configured = len(configured)
+        st.markdown(f"""
+        <div class="depot-manager">
+          <div class="depot-manager-header">
+            <span class="depot-manager-title">Depot List</span>
+            <span class="depot-count-badge">{n_configured} depots</span>
+          </div>
+          <div class="depot-list-body">
+        """ + "".join([
+            f'<div class="depot-row">'
+            f'<span class="depot-row-index">{i+1}</span>'
+            f'<span class="depot-check">✓</span>'
+            f'<span class="depot-name">{d}</span>'
+            f'</div>'
+            for i, d in enumerate(configured)
+        ]) + """
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Remove depot ──────────────────────────────────────
+        with st.expander("✏️  Edit depot list", expanded=False):
+            st.markdown('<div class="add-depot-title">Remove a depot</div>', unsafe_allow_html=True)
+            if configured:
+                remove_choice = st.selectbox(
+                    "Select depot to remove",
+                    options=configured,
+                    key="depot_remove_choice",
+                    label_visibility="collapsed",
+                )
+                if st.button("🗑  Remove selected depot", key="btn_remove_depot"):
+                    st.session_state["configured_depots"].remove(remove_choice)
+                    st.rerun()
+            else:
+                st.caption("No depots configured.")
+
+            st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="add-depot-title">Add a depot</div>', unsafe_allow_html=True)
+
+            available_depots_all = sorted(DEPOT_MAP.keys())
+            addable = [d for d in available_depots_all if d not in st.session_state["configured_depots"]]
+
+            if addable:
+                add_choice = st.selectbox(
+                    "Choose from configured .env depots",
+                    options=addable,
+                    key="depot_add_choice",
+                    label_visibility="collapsed",
+                )
+                if st.button("➕  Add depot", key="btn_add_depot"):
+                    st.session_state["configured_depots"].append(add_choice)
+                    st.session_state["configured_depots"].sort()
+                    st.rerun()
+            else:
+                st.caption("All .env depots are already in the list.")
+
+            st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="add-depot-title">Custom depot name</div>', unsafe_allow_html=True)
+            custom_name = st.text_input(
+                "Type a depot name manually",
+                placeholder="e.g. GHANA OIL CO.LTD, TAKORADI",
+                key="depot_custom_input",
+                label_visibility="collapsed",
+            )
+            if st.button("➕  Add custom depot", key="btn_add_custom") and custom_name.strip():
+                name = custom_name.strip()
+                if name not in st.session_state["configured_depots"]:
+                    st.session_state["configured_depots"].append(name)
+                    st.session_state["configured_depots"].sort()
+                    st.rerun()
+                else:
+                    st.warning("That depot is already in the list.")
+
+            st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+            if st.button("↺  Reset to defaults", key="btn_reset_depots"):
+                st.session_state["configured_depots"] = list(DEFAULT_DEPOTS)
+                st.rerun()
+
+    with col_controls:
+        # ── Products selector ──────────────────────────────────
         selected_products = st.multiselect(
             "Products",
             ["PMS", "GASOIL", "LPG"],
@@ -1316,61 +1491,68 @@ with tab3:
             key="oilcorp_products",
         )
 
-    depots_to_query   = selected_depots if selected_depots else available_depots
-    products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG"]
-    total_calls       = len(depots_to_query) * len(products_to_query)
+        depots_to_query   = st.session_state["configured_depots"]
+        products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG"]
+        total_calls       = len(depots_to_query) * len(products_to_query)
 
-    st.markdown(f"""
-    <div class="query-counter">
-        <div class="query-number">{total_calls}</div>
-        <div>API calls &nbsp;·&nbsp; <strong>{len(depots_to_query)}</strong> depot(s) × <strong>{len(products_to_query)}</strong> product(s) for <strong>{month_label}</strong></div>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="query-counter">
+            <div class="query-number">{total_calls}</div>
+            <div>API calls &nbsp;·&nbsp; <strong>{len(depots_to_query)}</strong> depot(s) × <strong>{len(products_to_query)}</strong> product(s) for <strong>{month_label}</strong></div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    if st.button("🔄  Fetch Stock Balances", type="primary", use_container_width=True):
-        opening_results: list[dict] = []
-        closing_results: list[dict] = []
+        if not depots_to_query:
+            st.warning("Add at least one depot to the list before fetching.")
+        elif st.button("🔄  Fetch Stock Balances", type="primary", use_container_width=True):
+            opening_results: list[dict] = []
+            closing_results: list[dict] = []
 
-        progress = st.progress(0, text="Initialising…")
-        log_box  = st.empty()
-        log_lines: list[str] = []
-        call_n = 0
+            progress = st.progress(0, text="Initialising…")
+            log_box  = st.empty()
+            log_lines: list[str] = []
+            call_n = 0
 
-        for depot_name in depots_to_query:
-            depot_id = DEPOT_MAP.get(depot_name)
-            if not depot_id:
-                for prod in products_to_query:
-                    opening_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found"})
-                    closing_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found"})
-                call_n += len(products_to_query)
-                continue
+            for depot_name in depots_to_query:
+                depot_id = DEPOT_MAP.get(depot_name)
+                if not depot_id:
+                    for prod in products_to_query:
+                        opening_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in .env"})
+                        closing_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in .env"})
+                    call_n += len(products_to_query)
+                    log_lines.append(f"⚠️ {depot_name} — not in .env, skipped")
+                    log_box.markdown(
+                        "<div class='log-console'>" + "<br>".join(log_lines[-12:]) + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                    continue
 
-            for product in products_to_query:
-                product_id = PRODUCT_MAP.get(product)
-                call_n += 1
-                progress.progress(call_n / total_calls, text=f"Fetching {depot_name} · {product}  ({call_n}/{total_calls})")
+                for product in products_to_query:
+                    product_id = PRODUCT_MAP.get(product)
+                    call_n += 1
+                    progress.progress(call_n / total_calls, text=f"Fetching {depot_name} · {product}  ({call_n}/{total_calls})")
 
-                result = fetch_oilcorp_stock_balances(sel_year, sel_month, depot_name, depot_id, product, product_id)
+                    result = fetch_oilcorp_stock_balances(sel_year, sel_month, depot_name, depot_id, product, product_id)
 
-                if result["opening"] is not None:
-                    log_lines.append(f"✅ {depot_name} [{product}] — Open: {result['opening']:,.0f} | Close: {result['closing']:,.0f}")
-                else:
-                    log_lines.append(f"⚠️ {depot_name} [{product}] — {result['error']}")
+                    if result["opening"] is not None:
+                        log_lines.append(f"✅ {depot_name} [{product}] — Open: {result['opening']:,.0f} | Close: {result['closing']:,.0f}")
+                    else:
+                        log_lines.append(f"⚠️ {depot_name} [{product}] — {result['error']}")
 
-                log_box.markdown(
-                    "<div class='log-console'>" + "<br>".join(log_lines[-12:]) + "</div>",
-                    unsafe_allow_html=True,
-                )
+                    log_box.markdown(
+                        "<div class='log-console'>" + "<br>".join(log_lines[-12:]) + "</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                opening_results.append({"depot": depot_name, "product": product, "balance": result["opening"], "error": result["error"]})
-                closing_results.append({"depot": depot_name, "product": product, "balance": result["closing"], "error": result["error"]})
+                    opening_results.append({"depot": depot_name, "product": product, "balance": result["opening"], "error": result["error"]})
+                    closing_results.append({"depot": depot_name, "product": product, "balance": result["closing"], "error": result["error"]})
 
-        progress.progress(1.0, text="✅ Complete")
-        st.session_state["oilcorp_opening"] = opening_results
-        st.session_state["oilcorp_closing"] = closing_results
+            progress.progress(1.0, text="✅ Complete")
+            st.session_state["oilcorp_opening"] = opening_results
+            st.session_state["oilcorp_closing"] = closing_results
 
-        n_ok = sum(1 for r in opening_results if r["balance"] is not None)
-        st.success(f"Fetched {total_calls} combinations — **{n_ok}** with data, **{total_calls - n_ok}** with errors.")
+            n_ok = sum(1 for r in opening_results if r["balance"] is not None)
+            st.success(f"Fetched {total_calls} combinations — **{n_ok}** with data, **{total_calls - n_ok}** with errors.")
 
     # ── Display results ───────────────────────────────────────
     opening_data = st.session_state.get("oilcorp_opening")
