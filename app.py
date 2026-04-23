@@ -14,7 +14,582 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-st.set_page_config(page_title="Order Request Report", layout="wide")
+st.set_page_config(
+    page_title="OilCorp | Order Request Report",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ══════════════════════════════════════════════════════════════
+# CUSTOM CSS — Premium Dark Industrial Theme
+# ══════════════════════════════════════════════════════════════
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Root variables ────────────────────────────────── */
+:root {
+    --bg-base:      #0D1117;
+    --bg-surface:   #161B22;
+    --bg-card:      #1C2128;
+    --bg-hover:     #21262D;
+    --border:       #30363D;
+    --border-light: #21262D;
+    --accent-blue:  #2F81F7;
+    --accent-gold:  #D4A843;
+    --accent-green: #3FB950;
+    --accent-red:   #F85149;
+    --accent-amber: #E3B341;
+    --text-primary: #E6EDF3;
+    --text-secondary: #8B949E;
+    --text-muted:   #484F58;
+    --gradient-1:   linear-gradient(135deg, #1a2744 0%, #0D1117 50%, #1a1f2e 100%);
+}
+
+/* ── Global reset ──────────────────────────────────── */
+html, body, [class*="css"], .stApp {
+    background-color: var(--bg-base) !important;
+    font-family: 'Barlow', sans-serif !important;
+    color: var(--text-primary) !important;
+}
+
+/* ── Hide Streamlit chrome ─────────────────────────── */
+#MainMenu, footer, header { visibility: hidden; }
+.stDeployButton { display: none; }
+
+/* ── Main container ────────────────────────────────── */
+.main .block-container {
+    padding: 0 2.5rem 3rem 2.5rem !important;
+    max-width: 1400px !important;
+}
+
+/* ── Hero header ───────────────────────────────────── */
+.hero-header {
+    background: linear-gradient(135deg, #0f1923 0%, #162032 40%, #0f1923 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 2.5rem 0 2rem 0;
+    margin: 0 -2.5rem 2.5rem -2.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.hero-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 80px,
+        rgba(47,129,247,0.03) 80px,
+        rgba(47,129,247,0.03) 81px
+    );
+}
+.hero-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+}
+.hero-inner {
+    padding: 0 2.5rem;
+    position: relative;
+    z-index: 1;
+}
+.hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+    margin-bottom: 0.6rem;
+}
+.hero-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem 0;
+}
+.hero-title span {
+    color: var(--accent-blue);
+}
+.hero-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 300;
+    margin: 0;
+}
+
+/* ── Section labels ────────────────────────────────── */
+.section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+}
+
+/* ── Upload zone ───────────────────────────────────── */
+.stFileUploader {
+    border: none !important;
+}
+[data-testid="stFileUploader"] > div {
+    background: var(--bg-surface) !important;
+    border: 1.5px dashed var(--border) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
+}
+[data-testid="stFileUploader"] > div:hover {
+    border-color: var(--accent-blue) !important;
+    background: var(--bg-card) !important;
+}
+[data-testid="stFileUploader"] label {
+    color: var(--text-secondary) !important;
+    font-size: 0.9rem !important;
+}
+
+/* ── Selectboxes ───────────────────────────────────── */
+.stSelectbox > div > div {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    color: var(--text-primary) !important;
+    font-family: 'Barlow', sans-serif !important;
+}
+.stSelectbox > div > div:focus-within {
+    border-color: var(--accent-blue) !important;
+    box-shadow: 0 0 0 3px rgba(47,129,247,0.15) !important;
+}
+.stSelectbox label {
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* ── Multiselect ───────────────────────────────────── */
+.stMultiSelect > div > div {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+}
+.stMultiSelect label {
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+[data-baseweb="tag"] {
+    background-color: rgba(47,129,247,0.15) !important;
+    border: 1px solid rgba(47,129,247,0.3) !important;
+    color: var(--accent-blue) !important;
+    border-radius: 4px !important;
+    font-size: 0.78rem !important;
+}
+
+/* ── Buttons ───────────────────────────────────────── */
+.stButton > button {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    font-family: 'Barlow', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    padding: 0.6rem 1.4rem !important;
+    transition: all 0.18s ease !important;
+    letter-spacing: 0.02em !important;
+}
+.stButton > button:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--accent-blue) !important;
+    color: var(--accent-blue) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 16px rgba(47,129,247,0.2) !important;
+}
+.stButton > button[kind="primary"] {
+    background: var(--accent-blue) !important;
+    border-color: var(--accent-blue) !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #388bfd !important;
+    color: #fff !important;
+    box-shadow: 0 4px 20px rgba(47,129,247,0.4) !important;
+}
+
+/* ── Download button ───────────────────────────────── */
+.stDownloadButton > button {
+    background: linear-gradient(135deg, #1a3a5c, #1a4a7a) !important;
+    color: #7cb9f4 !important;
+    border: 1px solid rgba(47,129,247,0.35) !important;
+    border-radius: 8px !important;
+    font-family: 'Barlow', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    padding: 0.65rem 1.6rem !important;
+    transition: all 0.2s ease !important;
+    width: 100% !important;
+}
+.stDownloadButton > button:hover {
+    background: linear-gradient(135deg, #1e4570, #1f5a94) !important;
+    box-shadow: 0 4px 20px rgba(47,129,247,0.35) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ── Tabs ──────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 1px solid var(--border) !important;
+    gap: 0 !important;
+    padding: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-secondary) !important;
+    font-family: 'Barlow', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.88rem !important;
+    padding: 0.8rem 1.4rem !important;
+    border-bottom: 2px solid transparent !important;
+    transition: all 0.18s ease !important;
+    letter-spacing: 0.02em !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: var(--text-primary) !important;
+    background: var(--bg-surface) !important;
+}
+.stTabs [aria-selected="true"] {
+    color: var(--accent-blue) !important;
+    border-bottom: 2px solid var(--accent-blue) !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab-panel"] {
+    background: transparent !important;
+    padding: 1.8rem 0 !important;
+}
+
+/* ── Expander ──────────────────────────────────────── */
+.stExpander {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    margin-bottom: 1rem !important;
+    overflow: hidden !important;
+}
+.stExpander > details > summary {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    font-family: 'Barlow Condensed', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    padding: 1rem 1.2rem !important;
+    border-radius: 10px !important;
+    transition: background 0.15s !important;
+}
+.stExpander > details > summary:hover {
+    background: var(--bg-hover) !important;
+}
+.stExpander > details[open] > summary {
+    border-bottom: 1px solid var(--border) !important;
+    border-radius: 10px 10px 0 0 !important;
+}
+.stExpander > details > div {
+    background: var(--bg-card) !important;
+    padding: 1rem 1.2rem !important;
+}
+
+/* ── Dataframes ────────────────────────────────────── */
+.stDataFrame {
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+}
+.stDataFrame iframe {
+    background: var(--bg-surface) !important;
+    border-radius: 8px !important;
+}
+[data-testid="stDataFrame"] > div {
+    border-radius: 8px !important;
+    overflow: hidden !important;
+}
+
+/* ── Alert / info / success / warning / error ──────── */
+.stAlert {
+    border-radius: 8px !important;
+    border: none !important;
+    font-family: 'Barlow', sans-serif !important;
+    font-size: 0.88rem !important;
+}
+[data-testid="stAlertContainer"] {
+    border-radius: 8px !important;
+    font-size: 0.88rem !important;
+}
+div[data-baseweb="notification"] {
+    border-radius: 8px !important;
+}
+
+/* ── Progress bar ──────────────────────────────────── */
+.stProgress > div > div {
+    background: var(--bg-surface) !important;
+    border-radius: 100px !important;
+    height: 6px !important;
+}
+.stProgress > div > div > div {
+    background: linear-gradient(90deg, var(--accent-blue), #79b8ff) !important;
+    border-radius: 100px !important;
+}
+
+/* ── Spinner ───────────────────────────────────────── */
+.stSpinner > div {
+    border-color: var(--accent-blue) transparent transparent transparent !important;
+}
+
+/* ── Stat cards ────────────────────────────────────── */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+}
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+}
+.stat-card.blue::before  { background: var(--accent-blue); }
+.stat-card.gold::before  { background: var(--accent-gold); }
+.stat-card.green::before { background: var(--accent-green); }
+.stat-card:hover { border-color: rgba(47,129,247,0.4); }
+.stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.stat-value {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+}
+.stat-sub {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 0.3rem;
+}
+
+/* ── Period selector card ──────────────────────────── */
+.period-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem 1.6rem;
+    margin-bottom: 1.8rem;
+}
+
+/* ── Info panel ────────────────────────────────────── */
+.info-panel {
+    background: rgba(47,129,247,0.07);
+    border: 1px solid rgba(47,129,247,0.2);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    font-size: 0.87rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.2rem;
+    line-height: 1.6;
+}
+.info-panel strong { color: var(--accent-blue); }
+
+/* ── Subheadings in tabs ───────────────────────────── */
+.tab-heading {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+}
+.tab-subhead {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.6rem;
+}
+
+/* ── Export section ────────────────────────────────── */
+.export-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 520px;
+    margin: 2rem auto;
+}
+.export-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+.export-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    color: var(--text-primary);
+}
+.export-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.4rem;
+    line-height: 1.5;
+}
+
+/* ── Sheet badge list ──────────────────────────────── */
+.sheet-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 1.4rem;
+}
+.sheet-badge {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+}
+.sheet-badge.active {
+    background: rgba(63,185,80,0.1);
+    border-color: rgba(63,185,80,0.3);
+    color: var(--accent-green);
+}
+
+/* ── Divider ───────────────────────────────────────── */
+.custom-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 1.5rem 0;
+}
+
+/* ── Column headers in selects ─────────────────────── */
+.stMarkdown h4 {
+    font-family: 'Barlow Condensed', sans-serif !important;
+    font-size: 1.2rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 0.8rem !important;
+    margin-top: 0.5rem !important;
+}
+.stMarkdown h3 {
+    font-family: 'Barlow Condensed', sans-serif !important;
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+}
+
+/* ── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Success/error/info/warning override ───────────── */
+.stSuccess, [data-testid="stAlertContainer"][data-baseweb="notification"] {
+    background: rgba(63,185,80,0.08) !important;
+    border-left: 3px solid var(--accent-green) !important;
+    color: var(--text-primary) !important;
+}
+.stWarning {
+    background: rgba(227,179,65,0.08) !important;
+    border-left: 3px solid var(--accent-amber) !important;
+    color: var(--text-primary) !important;
+}
+.stError {
+    background: rgba(248,81,73,0.08) !important;
+    border-left: 3px solid var(--accent-red) !important;
+}
+.stInfo {
+    background: rgba(47,129,247,0.08) !important;
+    border-left: 3px solid var(--accent-blue) !important;
+    color: var(--text-primary) !important;
+}
+
+/* ── Query counter ─────────────────────────────────── */
+.query-counter {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.9rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.query-number {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+    line-height: 1;
+}
+
+/* ── Log console ───────────────────────────────────── */
+.log-console {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    background: #0d1117;
+    border: 1px solid var(--border);
+    color: #d4d4d4;
+    padding: 12px 16px;
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.7;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ── Styling helpers ────────────────────────────────────────────────────────────
 DARK_BLUE  = "1F3864"
@@ -112,7 +687,6 @@ PRODUCT_MAP = {
     "LPG":    int(os.getenv("PRODUCT_LPG_ID",     "28")),
 }
 
-# All depots from .env — load dynamically
 def _load_depot_map() -> dict:
     depot_map = {}
     for key, value in os.environ.items():
@@ -185,11 +759,9 @@ SKIP_PFX = (
     "available stock balance", "last stock update", "i.t.s from",
 )
 
-
 def _skip(line):
     lo = line.strip().lower()
     return lo.startswith(SKIP_PFX) or bool(re.match(r"^\d{1,2}\s+\w+,\s+\d{4}", line.strip()))
-
 
 def _pnum(s):
     s = s.strip()
@@ -200,23 +772,17 @@ def _pnum(s):
     except ValueError:
         return None
 
-
 _DATE_LINE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)")
-_TAIL_RE = re.compile(
-    r"(\([\d,]+\)|[\d,]+)\s+(\([\d,]+\)|[\d,]+)\s*$"
-)
-
+_TAIL_RE = re.compile(r"(\([\d,]+\)|[\d,]+)\s+(\([\d,]+\)|[\d,]+)\s*$")
 
 def _parse_any_date_line(line: str) -> dict | None:
     line = line.strip()
     m = _DATE_LINE_RE.match(line)
     if not m:
         return None
-
     date  = m.group(1)
     trans = m.group(2)
     rest  = m.group(3).strip()
-
     for search_str in (rest, trans + " " + rest):
         tail = _TAIL_RE.search(search_str)
         if not tail:
@@ -238,9 +804,7 @@ def _parse_any_date_line(line: str) -> dict | None:
                     "Volume":      vol,
                     "Balance":     bal,
                 }
-
     return None
-
 
 def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
     records = []
@@ -265,9 +829,8 @@ def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
         pass
     return records
 
-
 # ══════════════════════════════════════════════════════════════
-# OPENING / CLOSING STOCK FETCHER FOR OILCORP
+# OPENING / CLOSING STOCK FETCHER
 # ══════════════════════════════════════════════════════════════
 
 def fetch_oilcorp_stock_balances(
@@ -324,7 +887,6 @@ def fetch_oilcorp_stock_balances(
 
     return {"opening": opening, "closing": closing, "records": records, "error": None}
 
-
 # ══════════════════════════════════════════════════════════════
 # EXCEL WRITERS
 # ══════════════════════════════════════════════════════════════
@@ -334,13 +896,11 @@ def write_p1_sheet(ws, tables):
     for tbl in tables:
         data  = tbl["data"]
         title = tbl["title"]
-
         ws.cell(row, 1, title).font = _font(bold=True, color=HEADER_FG, size=12)
         ws.cell(row, 1).fill = _fill(DARK_BLUE)
         ws.cell(row, 1).alignment = _align()
         ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
         row += 1
-
         for ci, label in enumerate(["OMC", "QUANTITY", "TOTAL"], 1):
             c = ws.cell(row, ci, label)
             c.font      = _font(bold=True, color=HEADER_FG)
@@ -348,7 +908,6 @@ def write_p1_sheet(ws, tables):
             c.alignment = _align()
             c.border    = _border()
         row += 1
-
         start_data = row
         for _, r in data.iterrows():
             ws.cell(row, 1, r["OMC"]).alignment = _align(h="left")
@@ -359,7 +918,6 @@ def write_p1_sheet(ws, tables):
                 c.alignment     = _align()
                 c.border        = _border()
             row += 1
-
         gt_cell = ws.cell(row, 1, "GRAND TOTAL")
         gt_cell.font      = _font(bold=True)
         gt_cell.fill      = _fill(YELLOW)
@@ -374,7 +932,6 @@ def write_p1_sheet(ws, tables):
             c.alignment     = _align()
             c.border        = _border()
         row += 3
-
     ws.column_dimensions["A"].width = 45
     ws.column_dimensions["B"].width = 18
     ws.column_dimensions["C"].width = 18
@@ -385,7 +942,6 @@ def write_summary_sheet(ws, summary_df):
     ws.cell(1, 1).fill      = _fill(DARK_BLUE)
     ws.cell(1, 1).alignment = _align()
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=5)
-
     headers = ["DEPOT", "AGO", "PMS", "LPG", "GRAND TOTAL"]
     for ci, h in enumerate(headers, 1):
         c = ws.cell(2, ci, h)
@@ -393,7 +949,6 @@ def write_summary_sheet(ws, summary_df):
         c.fill      = _fill(MED_BLUE)
         c.alignment = _align()
         c.border    = _border()
-
     for ri, row_data in summary_df.iterrows():
         excel_row = ri + 3
         is_total  = str(row_data.iloc[0]) == "GRAND TOTAL"
@@ -407,7 +962,6 @@ def write_summary_sheet(ws, summary_df):
                 c.number_format = "#,##0"
             if is_total:
                 c.font = _font(bold=True)
-
     for col, width in zip(["A", "B", "C", "D", "E"], [20, 14, 14, 10, 16]):
         ws.column_dimensions[col].width = width
 
@@ -427,29 +981,13 @@ def _cell(ws, row, col, value, bold=False, bg=None, fg="000000",
 
 
 def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_label: str):
-    """
-    Write Opening or Closing Stock sheet with each product as its own column.
-
-    Layout:
-        Col A  — DEPOT
-        Col B  — PMS (LT)
-        Col C  — GASOIL (LT)
-        Col D  — LPG (KG)
-        Col E  — GRAND TOTAL (LT/KG)
-        Col F  — STATUS
-
-    balance_data = list of dicts: { depot, product, balance, error }
-    """
     PRODUCTS = ["PMS", "GASOIL", "LPG"]
-
-    # ── Title ──────────────────────────────────────────────────────────────────
     title_text = f"OILCORP ENERGIA LIMITED — {sheet_type} STOCK BALANCE ({month_label})"
-    num_cols = len(PRODUCTS) + 3  # DEPOT + products + GRAND TOTAL + STATUS
+    num_cols = len(PRODUCTS) + 3
     ws.cell(1, 1, title_text).font = _font(bold=True, color=HEADER_FG, size=14)
     ws.cell(1, 1).fill      = _fill(DARK_BLUE)
     ws.cell(1, 1).alignment = _align()
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
-
     subtitle = (
         "Balance carried forward at start of month (Stock Take if available, else b/fwd)"
         if sheet_type == "OPENING"
@@ -459,9 +997,6 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
     ws.cell(2, 1).fill                = _fill(LIGHT_BLUE)
     ws.cell(2, 1).alignment           = _align()
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_cols)
-
-    # ── Column headers ─────────────────────────────────────────────────────────
-    # Col 1: DEPOT | Col 2..N+1: each product | Col N+2: GRAND TOTAL | Col N+3: STATUS
     headers = ["DEPOT"] + [f"{p} (LT/KG)" for p in PRODUCTS] + ["GRAND TOTAL (LT/KG)", "STATUS"]
     for ci, h in enumerate(headers, 1):
         c = ws.cell(3, ci, h)
@@ -469,9 +1004,6 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
         c.fill      = _fill(MED_BLUE)
         c.alignment = _align()
         c.border    = _border()
-
-    # ── Pivot balance_data: depot → {product: balance/error} ──────────────────
-    # Build ordered list of unique depots (preserving input order)
     seen_depots = []
     depot_data: dict[str, dict] = {}
     for entry in balance_data:
@@ -484,28 +1016,19 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
             "balance": entry["balance"],
             "error":   entry["error"],
         }
-
-    # ── Data rows ─────────────────────────────────────────────────────────────
     row = 4
     product_totals: dict[str, float] = {p: 0.0 for p in PRODUCTS}
-
     for depot in seen_depots:
         alt_fill = "F2F2F2" if row % 2 == 0 else None
         prod_info = depot_data[depot]
-
-        # DEPOT cell
         _cell(ws, row, 1, depot, h_align="left", bg=alt_fill, border=True)
-
         row_total = 0.0
         has_error = False
         error_msgs = []
-
-        # One column per product
         for ci, product in enumerate(PRODUCTS, 2):
             info    = prod_info.get(product, {})
             balance = info.get("balance")
             error   = info.get("error")
-
             if balance is not None:
                 _cell(ws, row, ci, balance, num_fmt="#,##0", bg=alt_fill, border=True)
                 row_total += balance
@@ -520,8 +1043,6 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
                 has_error = True
                 if error:
                     error_msgs.append(f"{product}: {error}")
-
-        # GRAND TOTAL column (sum of products with data for this depot)
         total_col = len(PRODUCTS) + 2
         if not has_error or row_total > 0:
             _cell(ws, row, total_col, row_total, bold=True, num_fmt="#,##0",
@@ -533,8 +1054,6 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
             c.border    = _border()
             if alt_fill:
                 c.fill = _fill(alt_fill)
-
-        # STATUS column
         status_col = len(PRODUCTS) + 3
         if not has_error:
             status_txt = "✓ OK"
@@ -545,25 +1064,18 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
         else:
             status_txt = f"✗ {'; '.join(error_msgs) or 'No data'}"
             status_clr = "CC0000"
-
         c = ws.cell(row, status_col, status_txt)
         c.font      = _font(bold=False, color=status_clr, size=10)
         c.alignment = _align(h="left")
         c.border    = _border()
         if alt_fill:
             c.fill = _fill(alt_fill)
-
         row += 1
-
-    # ── Product totals row ────────────────────────────────────────────────────
     row += 1
-
-    # "TOTALS" label spanning depot column
     ws.cell(row, 1, "PRODUCT TOTALS").font      = _font(bold=True, color=HEADER_FG, size=11)
     ws.cell(row, 1).fill                         = _fill(DARK_BLUE)
     ws.cell(row, 1).alignment                    = _align(h="left")
     ws.cell(row, 1).border                       = _border()
-
     grand_total = 0.0
     for ci, product in enumerate(PRODUCTS, 2):
         total = product_totals[product]
@@ -574,8 +1086,6 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
         c.number_format = "#,##0"
         c.alignment     = _align()
         c.border        = _border()
-
-    # Grand total cell
     total_col = len(PRODUCTS) + 2
     c = ws.cell(row, total_col, grand_total)
     c.font          = _font(bold=True, color=HEADER_FG, size=12)
@@ -583,15 +1093,11 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
     c.number_format = "#,##0"
     c.alignment     = _align()
     c.border        = _border()
-
-    # Empty status cell in totals row
     status_col = len(PRODUCTS) + 3
     c = ws.cell(row, status_col, "")
     c.fill   = _fill(DARK_BLUE)
     c.border = _border()
-
-    # ── Column widths ──────────────────────────────────────────────────────────
-    ws.column_dimensions["A"].width = 42          # DEPOT
+    ws.column_dimensions["A"].width = 42
     for ci, _ in enumerate(PRODUCTS, 2):
         ws.column_dimensions[get_column_letter(ci)].width = 18
     ws.column_dimensions[get_column_letter(total_col)].width = 22
@@ -601,26 +1107,17 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
 def generate_excel(tables, summary_df, month_label,
                    opening_data=None, closing_data=None):
     wb = Workbook()
-
-    # P1
     ws_p1 = wb.active
     ws_p1.title = "P1"
     write_p1_sheet(ws_p1, tables)
-
-    # SUMMARY
     ws_sum = wb.create_sheet("SUMMARY")
     write_summary_sheet(ws_sum, summary_df)
-
-    # OPENING STOCK (optional)
     if opening_data:
         ws_open = wb.create_sheet("OPENING STOCK")
         write_stock_balance_sheet(ws_open, opening_data, "OPENING", month_label)
-
-    # CLOSING STOCK (optional)
     if closing_data:
         ws_close = wb.create_sheet("CLOSING STOCK")
         write_stock_balance_sheet(ws_close, closing_data, "CLOSING", month_label)
-
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -631,347 +1128,365 @@ def generate_excel(tables, summary_df, month_label,
 # STREAMLIT UI
 # ══════════════════════════════════════════════════════════════
 
-st.title("📦 Order Request Report Generator")
-st.markdown(
-    "Upload an Excel file with an **ORDER REQUEST** sheet to generate "
-    "P1, Summary, and — optionally — Opening & Closing Stock Balance reports."
+MONTHS = {
+    1:"January", 2:"February", 3:"March",    4:"April",
+    5:"May",     6:"June",     7:"July",      8:"August",
+    9:"September",10:"October",11:"November",12:"December"
+}
+
+# ── Hero Header ───────────────────────────────────────────────
+st.markdown("""
+<div class="hero-header">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">▸ OILCORP ENERGIA LIMITED</div>
+    <h1 class="hero-title">Order Request <span>Report</span></h1>
+    <p class="hero-subtitle">Upload an ORDER REQUEST sheet to generate P1, Summary, and Stock Balance reports.</p>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── File Upload ───────────────────────────────────────────────
+st.markdown('<div class="section-label">01 — INPUT FILE</div>', unsafe_allow_html=True)
+
+uploaded = st.file_uploader(
+    "Drop your Excel file here or click to browse",
+    type=["xlsx"],
+    label_visibility="visible",
 )
 
-uploaded = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
+if not uploaded:
+    st.markdown("""
+    <div style="text-align:center; padding: 3rem 0; color: var(--text-muted);">
+        <div style="font-size:2.5rem; margin-bottom:0.8rem;">📂</div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase;">
+            Awaiting .xlsx upload
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
 
-if uploaded:
-    with st.spinner("Reading file…"):
-        try:
-            df = load_order_data(uploaded)
-        except Exception as e:
-            st.error(f"Could not read ORDER REQUEST sheet: {e}")
-            st.stop()
-
-    df["Year"]  = df["DATE"].dt.year
-    df["Month"] = df["DATE"].dt.month
-
-    years = sorted(df["Year"].unique(), reverse=True)
-    months = {
-        1:"January", 2:"February", 3:"March",    4:"April",
-        5:"May",     6:"June",     7:"July",      8:"August",
-        9:"September",10:"October",11:"November",12:"December"
-    }
-
-    col1, col2 = st.columns(2)
-    with col1:
-        sel_year = st.selectbox("Select Year", years)
-    with col2:
-        avail_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
-        sel_month    = st.selectbox("Select Month", avail_months,
-                                    format_func=lambda m: months[m])
-
-    month_label = f"{months[sel_month]} {sel_year}"
-
-    filtered = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
-
-    if filtered.empty:
-        st.warning("No data found for the selected period.")
+# ── Load Data ─────────────────────────────────────────────────
+with st.spinner("Parsing workbook…"):
+    try:
+        df = load_order_data(uploaded)
+    except Exception as e:
+        st.error(f"Could not read ORDER REQUEST sheet: {e}")
         st.stop()
 
-    w1 = filtered[filtered["DATE"].dt.day <= 15]
-    w2 = filtered[filtered["DATE"].dt.day >= 16]
+df["Year"]  = df["DATE"].dt.year
+df["Month"] = df["DATE"].dt.month
 
-    st.success(
-        f"**{month_label}** — {len(filtered):,} records | "
-        f"W1: {len(w1):,} | W2: {len(w2):,}"
+years = sorted(df["Year"].unique(), reverse=True)
+
+# ── Period Selector ───────────────────────────────────────────
+st.markdown('<div class="section-label">02 — REPORTING PERIOD</div>', unsafe_allow_html=True)
+
+with st.container():
+    st.markdown('<div class="period-card">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        sel_year = st.selectbox("Year", years)
+    with col2:
+        avail_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
+        sel_month    = st.selectbox("Month", avail_months, format_func=lambda m: MONTHS[m])
+    st.markdown('</div>', unsafe_allow_html=True)
+
+month_label = f"{MONTHS[sel_month]} {sel_year}"
+filtered = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
+
+if filtered.empty:
+    st.warning("No data found for the selected period.")
+    st.stop()
+
+w1 = filtered[filtered["DATE"].dt.day <= 15]
+w2 = filtered[filtered["DATE"].dt.day >= 16]
+
+# ── Stats Row ─────────────────────────────────────────────────
+total_qty = filtered["Quantity"].sum()
+n_omcs    = filtered["OMC"].nunique()
+n_depots  = filtered["Depot"].nunique()
+
+st.markdown(f"""
+<div class="stat-grid">
+  <div class="stat-card blue">
+    <div class="stat-label">Total Records</div>
+    <div class="stat-value">{len(filtered):,}</div>
+    <div class="stat-sub">W1: {len(w1):,} &nbsp;·&nbsp; W2: {len(w2):,}</div>
+  </div>
+  <div class="stat-card gold">
+    <div class="stat-label">Total Volume (L)</div>
+    <div class="stat-value">{total_qty:,.0f}</div>
+    <div class="stat-sub">{month_label}</div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-label">OMCs · Depots</div>
+    <div class="stat-value">{n_omcs} <span style="font-size:1.2rem;color:var(--text-muted)">·</span> {n_depots}</div>
+    <div class="stat-sub">Active this period</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+tables     = build_p1_tables(filtered)
+summary_df = build_summary(filtered)
+
+# ── Tabs ──────────────────────────────────────────────────────
+st.markdown('<div class="section-label">03 — REPORT VIEWS</div>', unsafe_allow_html=True)
+
+tab1, tab2, tab3, tab4 = st.tabs([
+    "  P1 — Depot Breakdown  ",
+    "  Loading Summary  ",
+    "  Stock Balances  ",
+    "  Export  ",
+])
+
+# ─── TAB 1: P1 ───────────────────────────────────────────────
+with tab1:
+    st.markdown(f'<div class="tab-heading">P1 — Depot / Product / Window</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="tab-subhead">Order requests broken down by depot, product, and fortnightly window — {month_label}</div>', unsafe_allow_html=True)
+
+    if not tables:
+        st.info("No data to display for this period.")
+    else:
+        depots_in_data = sorted(set(t["depot"] for t in tables))
+        for depot in depots_in_data:
+            with st.expander(f"🏭  {depot}", expanded=True):
+                depot_tables = [t for t in tables if t["depot"] == depot]
+                cols = st.columns(min(len(depot_tables), 2))
+                for i, tbl in enumerate(depot_tables):
+                    with cols[i % 2]:
+                        product_colors = {"PMS": "🟡", "AGO": "🔵", "LPG": "🟢"}
+                        icon = product_colors.get(tbl["product"], "⚪")
+                        st.markdown(f"**{icon} {tbl['title']}**")
+                        display = tbl["data"][["OMC", "Quantity"]].copy()
+                        display.columns = ["OMC", "Quantity (L)"]
+                        display["Quantity (L)"] = display["Quantity (L)"].apply(lambda x: f"{x:,.0f}")
+                        total = tbl["data"]["Quantity"].sum()
+                        total_row = pd.DataFrame([{"OMC": "GRAND TOTAL", "Quantity (L)": f"{total:,.0f}"}])
+                        display = pd.concat([display, total_row], ignore_index=True)
+                        st.dataframe(display, use_container_width=True, hide_index=True)
+
+# ─── TAB 2: SUMMARY ──────────────────────────────────────────
+with tab2:
+    st.markdown(f'<div class="tab-heading">Loading Summary</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="tab-subhead">Aggregate volumes by depot group and product — {month_label}</div>', unsafe_allow_html=True)
+
+    display_sum = summary_df.copy()
+    for col in ["AGO", "PMS", "LPG", "GRAND TOTAL"]:
+        if col in display_sum.columns:
+            display_sum[col] = display_sum[col].apply(
+                lambda x: f"{int(x):,}" if pd.notna(x) and x != 0 else "—"
+            )
+    col_rename = {"DepotGroup": "DEPOT"} if "DepotGroup" in display_sum.columns else {}
+    st.dataframe(
+        display_sum.rename(columns=col_rename),
+        use_container_width=True,
+        hide_index=True,
     )
 
-    tables     = build_p1_tables(filtered)
-    summary_df = build_summary(filtered)
+# ─── TAB 3: STOCK BALANCES ───────────────────────────────────
+with tab3:
+    st.markdown(f'<div class="tab-heading">OILCORP Stock Balances</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="tab-subhead">NPA stock transaction ledger for OILCORP ENERGIA LIMITED — {month_label}</div>', unsafe_allow_html=True)
 
-    # ── Tabs ──────────────────────────────────────────────────────────────────
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📋 P1 — Depot Breakdown",
-        "📊 Summary",
-        "🏦 OILCORP Stock Balances",
-        "⬇️ Export to Excel",
-    ])
+    st.markdown("""
+    <div class="info-panel">
+        <strong>Opening Balance</strong> — First <em>Stock Take</em> after the b/fwd row (if present), otherwise the <em>Balance b/fwd</em> value.<br>
+        <strong>Closing Balance</strong> — Last recorded running balance at end of the selected month.
+    </div>
+    """, unsafe_allow_html=True)
 
-    with tab1:
-        st.subheader(f"P1 — Depot / Product / Window Breakdown ({month_label})")
-        if not tables:
-            st.info("No data to display.")
-        else:
-            depots_in_data = sorted(set(t["depot"] for t in tables))
-            for depot in depots_in_data:
-                with st.expander(f"🏭 {depot}", expanded=True):
-                    depot_tables = [t for t in tables if t["depot"] == depot]
-                    cols = st.columns(min(len(depot_tables), 2))
-                    for i, tbl in enumerate(depot_tables):
-                        with cols[i % 2]:
-                            st.markdown(f"**{tbl['title']}**")
-                            display = tbl["data"][["OMC", "Quantity"]].copy()
-                            display.columns = ["OMC", "Quantity (L)"]
-                            display["Quantity (L)"] = display["Quantity (L)"].apply(
-                                lambda x: f"{x:,.0f}"
-                            )
-                            total = tbl["data"]["Quantity"].sum()
-                            total_row = pd.DataFrame(
-                                [{"OMC": "GRAND TOTAL", "Quantity (L)": f"{total:,.0f}"}]
-                            )
-                            display = pd.concat([display, total_row], ignore_index=True)
-                            st.dataframe(display, use_container_width=True, hide_index=True)
+    available_depots = sorted(DEPOT_MAP.keys())
+    if not available_depots:
+        st.error("No depots found in your `.env` file. Ensure DEPOT_* keys are configured correctly.")
+        st.stop()
 
-    with tab2:
-        st.subheader(f"Loading Summary — {month_label}")
-        display_sum = summary_df.copy()
-        for col in ["AGO", "PMS", "LPG", "GRAND TOTAL"]:
-            if col in display_sum.columns:
-                display_sum[col] = display_sum[col].apply(
-                    lambda x: f"{int(x):,}" if pd.notna(x) and x != 0 else "-"
-                )
-        col_rename = {"DepotGroup": "DEPOT"} if "DepotGroup" in display_sum.columns else {}
-        st.dataframe(display_sum.rename(columns=col_rename),
-                     use_container_width=True, hide_index=True)
-
-    # ── Tab 3 — OILCORP STOCK BALANCES ───────────────────────────────────────
-    with tab3:
-        st.subheader(f"🏦 OILCORP ENERGIA — Opening & Closing Stock Balance ({month_label})")
-
-        st.markdown("""
-        Fetches the NPA stock transaction ledger for **OILCORP ENERGIA LIMITED** only —
-        for every combination of depot and product that is configured in your `.env` file.
-
-        - **Opening Balance** = first *Stock Take* value after the b/fwd row (if present), otherwise the *Balance b/fwd* value.
-        - **Closing Balance** = the last running balance entry at the end of the selected month.
-        """)
-
-        available_depots = sorted(DEPOT_MAP.keys())
-        if not available_depots:
-            st.error(
-                "No depots found in your `.env` file. "
-                "Please ensure DEPOT_* keys are set correctly."
-            )
-            st.stop()
-
+    col_a, col_b = st.columns(2)
+    with col_a:
         selected_depots = st.multiselect(
-            "Select depots to query (leave blank to query ALL configured depots)",
+            "Filter Depots (blank = all)",
             available_depots,
             default=[],
             key="oilcorp_depots",
         )
+    with col_b:
         selected_products = st.multiselect(
-            "Select products",
+            "Products",
             ["PMS", "GASOIL", "LPG"],
             default=["PMS", "GASOIL", "LPG"],
             key="oilcorp_products",
         )
 
-        depots_to_query   = selected_depots if selected_depots else available_depots
-        products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG"]
+    depots_to_query   = selected_depots if selected_depots else available_depots
+    products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG"]
+    total_calls       = len(depots_to_query) * len(products_to_query)
 
-        st.info(
-            f"Will query **{len(depots_to_query)} depot(s)** × "
-            f"**{len(products_to_query)} product(s)** = "
-            f"**{len(depots_to_query) * len(products_to_query)} API calls** "
-            f"for {month_label}."
-        )
+    st.markdown(f"""
+    <div class="query-counter">
+        <div class="query-number">{total_calls}</div>
+        <div>API calls &nbsp;·&nbsp; <strong>{len(depots_to_query)}</strong> depot(s) × <strong>{len(products_to_query)}</strong> product(s) for <strong>{month_label}</strong></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        if st.button("🔄 Fetch OILCORP Stock Balances", type="primary"):
-            opening_results: list[dict] = []
-            closing_results: list[dict] = []
-            errors: list[str] = []
+    if st.button("🔄  Fetch Stock Balances", type="primary", use_container_width=True):
+        opening_results: list[dict] = []
+        closing_results: list[dict] = []
 
-            total_calls = len(depots_to_query) * len(products_to_query)
-            progress    = st.progress(0, text="Starting…")
-            log_box     = st.empty()
-            log_lines: list[str] = []
-            call_n = 0
+        progress = st.progress(0, text="Initialising…")
+        log_box  = st.empty()
+        log_lines: list[str] = []
+        call_n = 0
 
-            for depot_name in depots_to_query:
-                depot_id = DEPOT_MAP.get(depot_name)
-                if not depot_id:
-                    for prod in products_to_query:
-                        opening_results.append({"depot": depot_name, "product": prod,
-                                                "balance": None, "error": "Depot ID not found"})
-                        closing_results.append({"depot": depot_name, "product": prod,
-                                                "balance": None, "error": "Depot ID not found"})
-                    call_n += len(products_to_query)
-                    continue
+        for depot_name in depots_to_query:
+            depot_id = DEPOT_MAP.get(depot_name)
+            if not depot_id:
+                for prod in products_to_query:
+                    opening_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found"})
+                    closing_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found"})
+                call_n += len(products_to_query)
+                continue
 
-                for product in products_to_query:
-                    product_id = PRODUCT_MAP.get(product)
-                    call_n += 1
-                    progress.progress(
-                        call_n / total_calls,
-                        text=f"Fetching {depot_name} — {product} ({call_n}/{total_calls})…"
-                    )
+            for product in products_to_query:
+                product_id = PRODUCT_MAP.get(product)
+                call_n += 1
+                progress.progress(call_n / total_calls, text=f"Fetching {depot_name} · {product}  ({call_n}/{total_calls})")
 
-                    result = fetch_oilcorp_stock_balances(
-                        sel_year, sel_month, depot_name, depot_id, product, product_id
-                    )
+                result = fetch_oilcorp_stock_balances(sel_year, sel_month, depot_name, depot_id, product, product_id)
 
-                    if result["opening"] is not None:
-                        log_lines.append(
-                            f"✅ {depot_name} [{product}] — Open: {result['opening']:,.0f}"
-                        )
-                    else:
-                        log_lines.append(
-                            f"⚠️ {depot_name} [{product}] — {result['error']}"
-                        )
+                if result["opening"] is not None:
+                    log_lines.append(f"✅ {depot_name} [{product}] — Open: {result['opening']:,.0f} | Close: {result['closing']:,.0f}")
+                else:
+                    log_lines.append(f"⚠️ {depot_name} [{product}] — {result['error']}")
 
-                    log_box.markdown(
-                        "<div style='"
-                        "font-family:monospace;"
-                        "font-size:12px;"
-                        "background:#1e1e1e;"
-                        "color:#d4d4d4;"
-                        "padding:10px 14px;"
-                        "border-radius:6px;"
-                        "max-height:180px;"
-                        "overflow-y:auto;"
-                        "line-height:1.6;"
-                        "'>"
-                        + "<br>".join(log_lines[-10:])
-                        + "</div>",
-                        unsafe_allow_html=True,
-                    )
+                log_box.markdown(
+                    "<div class='log-console'>" + "<br>".join(log_lines[-12:]) + "</div>",
+                    unsafe_allow_html=True,
+                )
 
-                    opening_results.append({
-                        "depot":   depot_name,
-                        "product": product,
-                        "balance": result["opening"],
-                        "error":   result["error"],
-                    })
-                    closing_results.append({
-                        "depot":   depot_name,
-                        "product": product,
-                        "balance": result["closing"],
-                        "error":   result["error"],
-                    })
+                opening_results.append({"depot": depot_name, "product": product, "balance": result["opening"], "error": result["error"]})
+                closing_results.append({"depot": depot_name, "product": product, "balance": result["closing"], "error": result["error"]})
 
-            progress.progress(1.0, text="✅ Done")
+        progress.progress(1.0, text="✅ Complete")
+        st.session_state["oilcorp_opening"] = opening_results
+        st.session_state["oilcorp_closing"] = closing_results
 
-            st.session_state["oilcorp_opening"] = opening_results
-            st.session_state["oilcorp_closing"] = closing_results
+        n_ok = sum(1 for r in opening_results if r["balance"] is not None)
+        st.success(f"Fetched {total_calls} combinations — **{n_ok}** with data, **{total_calls - n_ok}** with errors.")
 
-            n_ok = sum(1 for r in opening_results if r["balance"] is not None)
-            st.success(
-                f"Fetched {total_calls} combinations — "
-                f"**{n_ok}** with data, "
-                f"**{total_calls - n_ok}** no data / error."
-            )
+    # ── Display results ───────────────────────────────────────
+    opening_data = st.session_state.get("oilcorp_opening")
+    closing_data = st.session_state.get("oilcorp_closing")
 
-        # ── Display results if available ──────────────────────────────────────
-        opening_data = st.session_state.get("oilcorp_opening")
-        closing_data = st.session_state.get("oilcorp_closing")
+    if opening_data or closing_data:
+        PRODUCTS = ["PMS", "GASOIL", "LPG"]
 
-        if opening_data or closing_data:
-            PRODUCTS = ["PMS", "GASOIL", "LPG"]
+        def _pivot_for_display(data: list) -> pd.DataFrame:
+            depot_order = []
+            depot_map_local: dict[str, dict] = {}
+            for entry in data:
+                d = entry["depot"]
+                p = entry["product"]
+                if d not in depot_map_local:
+                    depot_map_local[d] = {}
+                    depot_order.append(d)
+                depot_map_local[d][p] = entry
 
-            def _pivot_for_display(data: list) -> pd.DataFrame:
-                """
-                Pivot balance_data into a wide DataFrame:
-                  DEPOT | PMS (LT/KG) | GASOIL (LT/KG) | LPG (LT/KG) | GRAND TOTAL | STATUS
-                """
-                # depot → {product: {balance, error}}
-                depot_order = []
-                depot_map_local: dict[str, dict] = {}
-                for entry in data:
-                    d = entry["depot"]
-                    p = entry["product"]
-                    if d not in depot_map_local:
-                        depot_map_local[d] = {}
-                        depot_order.append(d)
-                    depot_map_local[d][p] = entry
-
-                rows = []
-                for depot in depot_order:
-                    prod_info = depot_map_local[depot]
-                    row_dict  = {"DEPOT": depot}
-                    row_total = 0.0
-                    has_error = False
-                    error_parts = []
-
-                    for prod in PRODUCTS:
-                        info    = prod_info.get(prod, {})
-                        balance = info.get("balance")
-                        error   = info.get("error", "")
-                        col_key = f"{prod} (LT/KG)"
-                        if balance is not None:
-                            row_dict[col_key] = f"{balance:,.0f}"
-                            row_total        += balance
-                        else:
-                            row_dict[col_key] = "N/A"
-                            has_error = True
-                            if error:
-                                error_parts.append(f"{prod}: {error}")
-
-                    row_dict["GRAND TOTAL"] = f"{row_total:,.0f}" if (not has_error or row_total > 0) else "N/A"
-                    row_dict["STATUS"] = (
-                        "✓ OK" if not has_error
-                        else f"⚠ Partial" if row_total > 0
-                        else "✗ Error"
-                    )
-                    rows.append(row_dict)
-
-                # Totals row
-                totals = {p: 0.0 for p in PRODUCTS}
-                for entry in data:
-                    if entry["balance"] is not None:
-                        totals[entry["product"]] = totals.get(entry["product"], 0.0) + entry["balance"]
-                total_row = {"DEPOT": "GRAND TOTAL"}
-                grand = 0.0
+            rows = []
+            for depot in depot_order:
+                prod_info = depot_map_local[depot]
+                row_dict  = {"DEPOT": depot}
+                row_total = 0.0
+                has_error = False
+                error_parts = []
                 for prod in PRODUCTS:
-                    total_row[f"{prod} (LT/KG)"] = f"{totals[prod]:,.0f}"
-                    grand += totals[prod]
-                total_row["GRAND TOTAL"] = f"{grand:,.0f}"
-                total_row["STATUS"] = ""
-                rows.append(total_row)
+                    info    = prod_info.get(prod, {})
+                    balance = info.get("balance")
+                    error   = info.get("error", "")
+                    col_key = f"{prod}"
+                    if balance is not None:
+                        row_dict[col_key] = f"{balance:,.0f}"
+                        row_total        += balance
+                    else:
+                        row_dict[col_key] = "N/A"
+                        has_error = True
+                        if error:
+                            error_parts.append(f"{prod}: {error}")
+                row_dict["TOTAL"] = f"{row_total:,.0f}" if (not has_error or row_total > 0) else "N/A"
+                row_dict["STATUS"] = (
+                    "✓" if not has_error
+                    else "⚠ Partial" if row_total > 0
+                    else "✗"
+                )
+                rows.append(row_dict)
 
-                return pd.DataFrame(rows)
+            totals = {p: 0.0 for p in PRODUCTS}
+            for entry in data:
+                if entry["balance"] is not None:
+                    totals[entry["product"]] = totals.get(entry["product"], 0.0) + entry["balance"]
+            total_row = {"DEPOT": "GRAND TOTAL"}
+            grand = 0.0
+            for prod in PRODUCTS:
+                total_row[prod] = f"{totals[prod]:,.0f}"
+                grand += totals[prod]
+            total_row["TOTAL"] = f"{grand:,.0f}"
+            total_row["STATUS"] = ""
+            rows.append(total_row)
+            return pd.DataFrame(rows)
 
-            col_a, col_b = st.columns(2)
+        st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if opening_data:
+                st.markdown("#### 📂 Opening Stock Balance")
+                st.dataframe(_pivot_for_display(opening_data), use_container_width=True, hide_index=True)
+        with col_b:
+            if closing_data:
+                st.markdown("#### 📁 Closing Stock Balance")
+                st.dataframe(_pivot_for_display(closing_data), use_container_width=True, hide_index=True)
 
-            with col_a:
-                if opening_data:
-                    st.markdown("#### 📂 Opening Stock Balance")
-                    df_open = _pivot_for_display(opening_data)
-                    st.dataframe(df_open, use_container_width=True, hide_index=True)
+# ─── TAB 4: EXPORT ───────────────────────────────────────────
+with tab4:
+    opening_data = st.session_state.get("oilcorp_opening")
+    closing_data = st.session_state.get("oilcorp_closing")
 
-            with col_b:
-                if closing_data:
-                    st.markdown("#### 📁 Closing Stock Balance")
-                    df_close = _pivot_for_display(closing_data)
-                    st.dataframe(df_close, use_container_width=True, hide_index=True)
+    has_stock = bool(opening_data or closing_data)
 
-    # ── Tab 4 — EXPORT ────────────────────────────────────────────────────────
-    with tab4:
-        st.subheader("Export Report to Excel")
-        st.markdown(
-            "Generates an Excel workbook with **P1**, **SUMMARY**, and — if fetched — "
-            "**OPENING STOCK** and **CLOSING STOCK** sheets for OILCORP ENERGIA."
-        )
+    p1_badge     = '<span class="sheet-badge active">P1</span>'
+    sum_badge    = '<span class="sheet-badge active">SUMMARY</span>'
+    open_badge   = f'<span class="sheet-badge {"active" if opening_data else ""}">OPENING STOCK</span>'
+    close_badge  = f'<span class="sheet-badge {"active" if closing_data else ""}">CLOSING STOCK</span>'
 
-        opening_data = st.session_state.get("oilcorp_opening")
-        closing_data = st.session_state.get("oilcorp_closing")
+    st.markdown(f"""
+    <div class="export-card">
+        <span class="export-icon">📊</span>
+        <div class="export-title">Excel Workbook</div>
+        <div class="export-desc">
+            Generate a formatted .xlsx report with all active sheets for <strong>{month_label}</strong>.
+        </div>
+        <div class="sheet-badges">
+            {p1_badge} {sum_badge} {open_badge} {close_badge}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        if opening_data or closing_data:
-            st.success(
-                "✅ OILCORP stock balance data is ready — "
-                "it will be included in the exported workbook."
-            )
-        else:
-            st.info(
-                "ℹ️ Go to the **OILCORP Stock Balances** tab first to fetch "
-                "opening/closing data before exporting."
-            )
+    if not has_stock:
+        st.markdown("""
+        <div class="info-panel" style="max-width:520px; margin: 0 auto 1rem auto; text-align:center;">
+            Visit the <strong>Stock Balances</strong> tab and fetch OILCORP data to include those sheets in the export.
+        </div>
+        """, unsafe_allow_html=True)
 
-        if st.button("📥 Generate Excel Report", type="primary"):
-            with st.spinner("Building Excel file…"):
+    col_left, col_mid, col_right = st.columns([1, 2, 1])
+    with col_mid:
+        if st.button("⚡  Build Excel Report", type="primary", use_container_width=True):
+            with st.spinner("Compiling workbook…"):
                 excel_buf = generate_excel(
                     tables, summary_df, month_label,
                     opening_data=opening_data,
                     closing_data=closing_data,
                 )
-            fname = f"Report_{months[sel_month]}_{sel_year}.xlsx"
+            fname = f"OilCorp_Report_{MONTHS[sel_month]}_{sel_year}.xlsx"
             st.download_button(
-                label=f"⬇️ Download {fname}",
+                label=f"⬇  Download  {fname}",
                 data=excel_buf,
                 file_name=fname,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
