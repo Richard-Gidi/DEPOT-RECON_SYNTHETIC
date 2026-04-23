@@ -114,18 +114,12 @@ PRODUCT_MAP = {
 
 # All depots from .env — load dynamically
 def _load_depot_map() -> dict:
-    """
-    Read all DEPOT_* keys from .env and return {display_name: id}.
-    Handles the naming quirks in the .env file.
-    """
     depot_map = {}
     for key, value in os.environ.items():
         if not key.startswith("DEPOT_"):
             continue
-        raw = key[6:]  # strip "DEPOT_"
-        # Convert underscores to spaces then apply known fixes
+        raw = key[6:]
         name = raw.replace("_", " ").strip()
-        # Apply the same normalisation as the original npa_dashboard.py
         if name == "GHANA OIL COLTD TAKORADI":
             name = "GHANA OIL CO.LTD, TAKORADI"
         elif name == "GOIL LPG BOTTLING PLANT TEMA":
@@ -207,29 +201,13 @@ def _pnum(s):
         return None
 
 
-# Matches any line that starts with DD/MM/YYYY followed by whitespace
 _DATE_LINE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)")
-
-# Matches the two trailing numbers (volume + balance) at the end of a ledger line.
-# Balance may be negative e.g. (8,453)
 _TAIL_RE = re.compile(
     r"(\([\d,]+\)|[\d,]+)\s+(\([\d,]+\)|[\d,]+)\s*$"
 )
 
 
 def _parse_any_date_line(line: str) -> dict | None:
-    """
-    Parse ANY dated ledger line, including 'Balance b/fwd'.
-
-    Format:  DD/MM/YYYY  TRANS#  DESCRIPTION  [ACCOUNT]  VOLUME  BALANCE
-
-    The tricky case is 'Balance b/fwd': the regex captures 'Balance' as the
-    trans token and 'b/fwd 93,547 93,547' as rest.  We therefore do a
-    two-pass search:
-      Pass 1 — try matching descriptions against `rest`  (normal rows)
-      Pass 2 — try matching against `trans + ' ' + rest` (catches b/fwd)
-    The first pass that yields a known description wins.
-    """
     line = line.strip()
     m = _DATE_LINE_RE.match(line)
     if not m:
@@ -265,10 +243,6 @@ def _parse_any_date_line(line: str) -> dict | None:
 
 
 def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
-    """
-    Parse all ledger lines from the PDF, INCLUDING 'Balance b/fwd'.
-    Returns list sorted by appearance order (page → line).
-    """
     records = []
     seen    = set()
     try:
@@ -299,32 +273,6 @@ def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
 def fetch_oilcorp_stock_balances(
     year: int, month: int, depot_name: str, depot_id: int, product: str, product_id: int
 ) -> dict:
-    """
-    Fetch the stock transaction PDF for OILCORP ENERGIA for the given month,
-    depot and product.  Returns:
-        {
-          "opening": float | None,   # Opening balance for this month
-          "closing": float | None,   # Last running balance recorded in the ledger
-          "records": list,
-          "error":   str | None,
-        }
-
-    Opening balance rules
-    ---------------------
-    1. If a "Stock Take" row exists anywhere after the "Balance b/fwd" row,
-       use the Balance of the FIRST "Stock Take" row as the opening balance.
-    2. Otherwise, fall back to the Balance column of the "Balance b/fwd" row.
-
-    This handles the common case where a stock take is performed at the start
-    of the month and supersedes the carried-forward balance.
-
-    Closing balance rules
-    ---------------------
-    Walk the records in reverse and take the Balance of the last row that is
-    NOT a b/fwd row.  If the only record present is the b/fwd itself (e.g. no
-    activity during the month), we fall back to that same balance — the account
-    opened and closed at the same value.
-    """
     import calendar
     last_day  = calendar.monthrange(year, month)[1]
     start_str = f"{month:02d}/01/{year}"
@@ -347,7 +295,6 @@ def fetch_oilcorp_stock_balances(
     if not records:
         return {"opening": None, "closing": None, "records": [], "error": "No transactions parsed"}
 
-    # ── Opening: prefer first Stock Take after the b/fwd; fall back to b/fwd ──
     bfwd_balance     = None
     bfwd_index       = None
     first_stock_take = None
@@ -358,24 +305,20 @@ def fetch_oilcorp_stock_balances(
             bfwd_index   = i
         elif (
             r["Description"] == "Stock Take"
-            and bfwd_index is not None          # must come AFTER the b/fwd row
+            and bfwd_index is not None
             and i > bfwd_index
             and first_stock_take is None
         ):
             first_stock_take = float(r["Balance"])
 
-    # Use Stock Take balance if one was found, otherwise use b/fwd balance
     opening = first_stock_take if first_stock_take is not None else bfwd_balance
 
-    # ── Closing: last non-b/fwd row; fallback to last row if none ────────────
     closing = None
     for r in reversed(records):
         if r["Description"] != "Balance b/fwd":
             closing = float(r["Balance"])
             break
 
-    # Edge case: only the b/fwd row exists (no activity during the month)
-    # → opening and closing are the same value
     if closing is None and records:
         closing = float(records[-1]["Balance"])
 
@@ -485,17 +428,27 @@ def _cell(ws, row, col, value, bold=False, bg=None, fg="000000",
 
 def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_label: str):
     """
-    Write either Opening Stock or Closing Stock sheet.
-    balance_data = list of dicts:
-      { depot, product, balance, error }
-    sheet_type = "OPENING" | "CLOSING"
+    Write Opening or Closing Stock sheet with each product as its own column.
+
+    Layout:
+        Col A  — DEPOT
+        Col B  — PMS (LT)
+        Col C  — GASOIL (LT)
+        Col D  — LPG (KG)
+        Col E  — GRAND TOTAL (LT/KG)
+        Col F  — STATUS
+
+    balance_data = list of dicts: { depot, product, balance, error }
     """
-    # ── Title ──
+    PRODUCTS = ["PMS", "GASOIL", "LPG"]
+
+    # ── Title ──────────────────────────────────────────────────────────────────
     title_text = f"OILCORP ENERGIA LIMITED — {sheet_type} STOCK BALANCE ({month_label})"
+    num_cols = len(PRODUCTS) + 3  # DEPOT + products + GRAND TOTAL + STATUS
     ws.cell(1, 1, title_text).font = _font(bold=True, color=HEADER_FG, size=14)
     ws.cell(1, 1).fill      = _fill(DARK_BLUE)
     ws.cell(1, 1).alignment = _align()
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=4)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
 
     subtitle = (
         "Balance carried forward at start of month (Stock Take if available, else b/fwd)"
@@ -505,10 +458,11 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
     ws.cell(2, 1, subtitle).font      = _font(bold=False, color="595959", size=10)
     ws.cell(2, 1).fill                = _fill(LIGHT_BLUE)
     ws.cell(2, 1).alignment           = _align()
-    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=4)
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_cols)
 
-    # ── Column headers ──
-    headers = ["DEPOT", "PRODUCT", "BALANCE (LT / KG)", "STATUS"]
+    # ── Column headers ─────────────────────────────────────────────────────────
+    # Col 1: DEPOT | Col 2..N+1: each product | Col N+2: GRAND TOTAL | Col N+3: STATUS
+    headers = ["DEPOT"] + [f"{p} (LT/KG)" for p in PRODUCTS] + ["GRAND TOTAL (LT/KG)", "STATUS"]
     for ci, h in enumerate(headers, 1):
         c = ws.cell(3, ci, h)
         c.font      = _font(bold=True, color=HEADER_FG, size=11)
@@ -516,81 +470,132 @@ def write_stock_balance_sheet(ws, balance_data: list, sheet_type: str, month_lab
         c.alignment = _align()
         c.border    = _border()
 
-    # ── Data rows ──
-    row = 4
-    product_totals: dict[str, float] = {}
-    depot_totals:   dict[str, float] = {}
-
+    # ── Pivot balance_data: depot → {product: balance/error} ──────────────────
+    # Build ordered list of unique depots (preserving input order)
+    seen_depots = []
+    depot_data: dict[str, dict] = {}
     for entry in balance_data:
         depot   = entry["depot"]
         product = entry["product"]
-        balance = entry["balance"]
-        error   = entry["error"]
+        if depot not in depot_data:
+            depot_data[depot] = {}
+            seen_depots.append(depot)
+        depot_data[depot][product] = {
+            "balance": entry["balance"],
+            "error":   entry["error"],
+        }
 
+    # ── Data rows ─────────────────────────────────────────────────────────────
+    row = 4
+    product_totals: dict[str, float] = {p: 0.0 for p in PRODUCTS}
+
+    for depot in seen_depots:
         alt_fill = "F2F2F2" if row % 2 == 0 else None
+        prod_info = depot_data[depot]
 
-        _cell(ws, row, 1, depot,   h_align="left",   bg=alt_fill, border=True)
-        _cell(ws, row, 2, product, h_align="center",  bg=alt_fill, border=True)
+        # DEPOT cell
+        _cell(ws, row, 1, depot, h_align="left", bg=alt_fill, border=True)
 
-        if balance is not None:
-            _cell(ws, row, 3, balance, num_fmt="#,##0", bg=alt_fill, border=True)
-            product_totals[product] = product_totals.get(product, 0) + balance
-            depot_totals[depot]     = depot_totals.get(depot, 0)     + balance
+        row_total = 0.0
+        has_error = False
+        error_msgs = []
+
+        # One column per product
+        for ci, product in enumerate(PRODUCTS, 2):
+            info    = prod_info.get(product, {})
+            balance = info.get("balance")
+            error   = info.get("error")
+
+            if balance is not None:
+                _cell(ws, row, ci, balance, num_fmt="#,##0", bg=alt_fill, border=True)
+                row_total += balance
+                product_totals[product] += balance
+            else:
+                c = ws.cell(row, ci, "N/A")
+                c.font      = _font(bold=False, color="FF0000")
+                c.alignment = _align()
+                c.border    = _border()
+                if alt_fill:
+                    c.fill = _fill(alt_fill)
+                has_error = True
+                if error:
+                    error_msgs.append(f"{product}: {error}")
+
+        # GRAND TOTAL column (sum of products with data for this depot)
+        total_col = len(PRODUCTS) + 2
+        if not has_error or row_total > 0:
+            _cell(ws, row, total_col, row_total, bold=True, num_fmt="#,##0",
+                  bg=alt_fill, border=True)
         else:
-            c = ws.cell(row, 3, "N/A")
+            c = ws.cell(row, total_col, "N/A")
             c.font      = _font(bold=False, color="FF0000")
             c.alignment = _align()
             c.border    = _border()
             if alt_fill:
                 c.fill = _fill(alt_fill)
 
-        status_txt = "✓ OK" if balance is not None else f"✗ {error or 'No data'}"
-        status_clr = "00AA00" if balance is not None else "CC0000"
-        c = ws.cell(row, 4, status_txt)
+        # STATUS column
+        status_col = len(PRODUCTS) + 3
+        if not has_error:
+            status_txt = "✓ OK"
+            status_clr = "00AA00"
+        elif row_total > 0:
+            status_txt = f"⚠ Partial ({'; '.join(error_msgs)})"
+            status_clr = "B8860B"
+        else:
+            status_txt = f"✗ {'; '.join(error_msgs) or 'No data'}"
+            status_clr = "CC0000"
+
+        c = ws.cell(row, status_col, status_txt)
         c.font      = _font(bold=False, color=status_clr, size=10)
-        c.alignment = _align(h="center")
+        c.alignment = _align(h="left")
         c.border    = _border()
         if alt_fill:
             c.fill = _fill(alt_fill)
 
         row += 1
 
-    # ── Product subtotals block ──
+    # ── Product totals row ────────────────────────────────────────────────────
     row += 1
-    ws.cell(row, 1, "PRODUCT TOTALS").font      = _font(bold=True, color=HEADER_FG, size=12)
-    ws.cell(row, 1).fill                         = _fill("1F3864")
+
+    # "TOTALS" label spanning depot column
+    ws.cell(row, 1, "PRODUCT TOTALS").font      = _font(bold=True, color=HEADER_FG, size=11)
+    ws.cell(row, 1).fill                         = _fill(DARK_BLUE)
     ws.cell(row, 1).alignment                    = _align(h="left")
     ws.cell(row, 1).border                       = _border()
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
-    row += 1
 
-    prod_order = ["PMS", "GASOIL", "LPG"]
-    for prod in prod_order:
-        total = product_totals.get(prod, 0)
-        _cell(ws, row, 1, f"Total {prod}", bold=True, h_align="left",
-              bg=LIGHT_BLUE, border=True)
-        ws.cell(row, 1).font = _font(bold=True, color="1F3864", size=11)
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
-        _cell(ws, row, 3, total, bold=True, num_fmt="#,##0", bg=LIGHT_BLUE, border=True)
-        ws.cell(row, 3).font = _font(bold=True, color="1F3864", size=11)
-        _cell(ws, row, 4, "LT / KG", bold=False, bg=LIGHT_BLUE, border=True)
-        row += 1
+    grand_total = 0.0
+    for ci, product in enumerate(PRODUCTS, 2):
+        total = product_totals[product]
+        grand_total += total
+        c = ws.cell(row, ci, total)
+        c.font          = _font(bold=True, color=HEADER_FG, size=11)
+        c.fill          = _fill(DARK_BLUE)
+        c.number_format = "#,##0"
+        c.alignment     = _align()
+        c.border        = _border()
 
-    # Grand total
-    grand = sum(product_totals.values())
-    _cell(ws, row, 1, "GRAND TOTAL", bold=True, fg=HEADER_FG, bg=DARK_BLUE,
-          h_align="left", border=True, size=12)
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
-    _cell(ws, row, 3, grand, bold=True, fg=HEADER_FG, bg=DARK_BLUE,
-          num_fmt="#,##0", border=True, size=12)
-    _cell(ws, row, 4, "LT / KG", bold=True, fg=HEADER_FG, bg=DARK_BLUE,
-          border=True, size=12)
+    # Grand total cell
+    total_col = len(PRODUCTS) + 2
+    c = ws.cell(row, total_col, grand_total)
+    c.font          = _font(bold=True, color=HEADER_FG, size=12)
+    c.fill          = _fill(DARK_BLUE)
+    c.number_format = "#,##0"
+    c.alignment     = _align()
+    c.border        = _border()
 
-    # ── Column widths ──
-    ws.column_dimensions["A"].width = 42
-    ws.column_dimensions["B"].width = 14
-    ws.column_dimensions["C"].width = 22
-    ws.column_dimensions["D"].width = 22
+    # Empty status cell in totals row
+    status_col = len(PRODUCTS) + 3
+    c = ws.cell(row, status_col, "")
+    c.fill   = _fill(DARK_BLUE)
+    c.border = _border()
+
+    # ── Column widths ──────────────────────────────────────────────────────────
+    ws.column_dimensions["A"].width = 42          # DEPOT
+    for ci, _ in enumerate(PRODUCTS, 2):
+        ws.column_dimensions[get_column_letter(ci)].width = 18
+    ws.column_dimensions[get_column_letter(total_col)].width = 22
+    ws.column_dimensions[get_column_letter(status_col)].width = 38
 
 
 def generate_excel(tables, summary_df, month_label,
@@ -736,7 +741,6 @@ if uploaded:
         - **Closing Balance** = the last running balance entry at the end of the selected month.
         """)
 
-        # Let user pick which depots & products to query
         available_depots = sorted(DEPOT_MAP.keys())
         if not available_depots:
             st.error(
@@ -811,7 +815,6 @@ if uploaded:
                             f"⚠️ {depot_name} [{product}] — {result['error']}"
                         )
 
-                    # ── FIX: dark background + light text so log is always readable ──
                     log_box.markdown(
                         "<div style='"
                         "font-family:monospace;"
@@ -859,43 +862,83 @@ if uploaded:
         closing_data = st.session_state.get("oilcorp_closing")
 
         if opening_data or closing_data:
-            col_a, col_b = st.columns(2)
+            PRODUCTS = ["PMS", "GASOIL", "LPG"]
 
-            def _render_balance_table(data: list, label: str):
-                rows = []
+            def _pivot_for_display(data: list) -> pd.DataFrame:
+                """
+                Pivot balance_data into a wide DataFrame:
+                  DEPOT | PMS (LT/KG) | GASOIL (LT/KG) | LPG (LT/KG) | GRAND TOTAL | STATUS
+                """
+                # depot → {product: {balance, error}}
+                depot_order = []
+                depot_map_local: dict[str, dict] = {}
                 for entry in data:
-                    bal = entry["balance"]
-                    rows.append({
-                        "Depot":       entry["depot"],
-                        "Product":     entry["product"],
-                        "Balance (LT)": f"{bal:,.0f}" if bal is not None else "—",
-                        "Status":      "✓" if bal is not None else f"✗ {entry['error']}",
-                    })
-                df_display = pd.DataFrame(rows)
-                st.markdown(f"#### {label}")
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                    d = entry["depot"]
+                    p = entry["product"]
+                    if d not in depot_map_local:
+                        depot_map_local[d] = {}
+                        depot_order.append(d)
+                    depot_map_local[d][p] = entry
 
-                # Product totals
-                totals = {}
+                rows = []
+                for depot in depot_order:
+                    prod_info = depot_map_local[depot]
+                    row_dict  = {"DEPOT": depot}
+                    row_total = 0.0
+                    has_error = False
+                    error_parts = []
+
+                    for prod in PRODUCTS:
+                        info    = prod_info.get(prod, {})
+                        balance = info.get("balance")
+                        error   = info.get("error", "")
+                        col_key = f"{prod} (LT/KG)"
+                        if balance is not None:
+                            row_dict[col_key] = f"{balance:,.0f}"
+                            row_total        += balance
+                        else:
+                            row_dict[col_key] = "N/A"
+                            has_error = True
+                            if error:
+                                error_parts.append(f"{prod}: {error}")
+
+                    row_dict["GRAND TOTAL"] = f"{row_total:,.0f}" if (not has_error or row_total > 0) else "N/A"
+                    row_dict["STATUS"] = (
+                        "✓ OK" if not has_error
+                        else f"⚠ Partial" if row_total > 0
+                        else "✗ Error"
+                    )
+                    rows.append(row_dict)
+
+                # Totals row
+                totals = {p: 0.0 for p in PRODUCTS}
                 for entry in data:
                     if entry["balance"] is not None:
-                        totals[entry["product"]] = totals.get(entry["product"], 0) + entry["balance"]
-                if totals:
-                    st.markdown("**Product Totals:**")
-                    tot_df = pd.DataFrame([
-                        {"Product": p, "Total (LT/KG)": f"{v:,.0f}"}
-                        for p, v in sorted(totals.items())
-                    ])
-                    tot_df.loc[len(tot_df)] = {
-                        "Product": "GRAND TOTAL",
-                        "Total (LT/KG)": f"{sum(totals.values()):,.0f}"
-                    }
-                    st.dataframe(tot_df, use_container_width=True, hide_index=True)
+                        totals[entry["product"]] = totals.get(entry["product"], 0.0) + entry["balance"]
+                total_row = {"DEPOT": "GRAND TOTAL"}
+                grand = 0.0
+                for prod in PRODUCTS:
+                    total_row[f"{prod} (LT/KG)"] = f"{totals[prod]:,.0f}"
+                    grand += totals[prod]
+                total_row["GRAND TOTAL"] = f"{grand:,.0f}"
+                total_row["STATUS"] = ""
+                rows.append(total_row)
+
+                return pd.DataFrame(rows)
+
+            col_a, col_b = st.columns(2)
 
             with col_a:
-                _render_balance_table(opening_data, "📂 Opening Stock Balance")
+                if opening_data:
+                    st.markdown("#### 📂 Opening Stock Balance")
+                    df_open = _pivot_for_display(opening_data)
+                    st.dataframe(df_open, use_container_width=True, hide_index=True)
+
             with col_b:
-                _render_balance_table(closing_data, "📁 Closing Stock Balance")
+                if closing_data:
+                    st.markdown("#### 📁 Closing Stock Balance")
+                    df_close = _pivot_for_display(closing_data)
+                    st.dataframe(df_close, use_container_width=True, hide_index=True)
 
     # ── Tab 4 — EXPORT ────────────────────────────────────────────────────────
     with tab4:
