@@ -64,7 +64,7 @@ html, body, [class*="css"], .stApp {
     color: var(--text-primary) !important;
 }
 
-#MainMenu, footer, header { visibility: hidden; }
+footer { visibility: hidden; }
 .stDeployButton { display: none; }
 
 .main .block-container {
@@ -964,17 +964,13 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
 def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.DataFrame:
     """
-    Fetch OilCorp Energia daily orders from the NPA portal.
-
-    Tries two param variants in order — whichever returns a valid PDF first wins:
-      Variant A: intPeriodID=-1, strQuery1="" (browser-confirmed for daily view)
-      Variant B: intPeriodID=4,  strQuery1=" and iorderstatus=4" (released-orders filter)
+    Fetch OilCorp Energia daily orders from the NPA portal using Variant A
+    (intPeriodID=-1, strQuery1="" — browser-confirmed for daily view).
     """
     start_str = start_date.strftime("%m/%d/%Y")
     end_str   = end_date.strftime("%m/%d/%Y")
 
-    # Variant A — matches the browser URL captured for the daily order report
-    params_a = {
+    params = {
         "lngCompanyId":    NPA_COMPANY_ID,
         "szITSfromPersol": "persol",
         "strGroupBy":      "DEPOT",
@@ -990,32 +986,14 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
         "iAppId":          NPA_APP_ID,
     }
 
-    # Variant B — released-orders filter
-    params_b = {
-        "lngCompanyId":    NPA_COMPANY_ID,
-        "szITSfromPersol": "persol",
-        "strGroupBy":      "DEPOT",
-        "strGroupBy1":     "",
-        "strQuery1":       " and iorderstatus=4",
-        "strQuery2":       start_str,
-        "strQuery3":       end_str,
-        "strQuery4":       "",
-        "strPicHeight":    "",
-        "strPicWeight":    "",
-        "intPeriodID":     "4",
-        "iUserId":         OILCORP_USER_ID,
-        "iAppId":          NPA_APP_ID,
-    }
-
-    for variant, params in [("A", params_a), ("B", params_b)]:
-        pdf_bytes = _fetch_pdf(
-            DAILY_ORDERS_URL, params,
-            debug_key=f"daily_debug_variant_{variant}",
-        )
-        if pdf_bytes:
-            df = extract_oilcorp_daily_orders(pdf_bytes)
-            st.session_state["daily_winning_variant"] = variant
-            return df
+    pdf_bytes = _fetch_pdf(
+        DAILY_ORDERS_URL, params,
+        debug_key="daily_debug_variant_A",
+    )
+    if pdf_bytes:
+        df = extract_oilcorp_daily_orders(pdf_bytes)
+        st.session_state["daily_winning_variant"] = "A"
+        return df
 
     return pd.DataFrame()
 
@@ -1843,7 +1821,7 @@ def page_daily_orders():
         show_debug = st.checkbox("🔍 Show debug info", value=False, key="daily_show_debug")
 
     if fetch_clicked:
-        for k in ["daily_debug_variant_A", "daily_debug_variant_B", "daily_winning_variant"]:
+        for k in ["daily_debug_variant_A", "daily_winning_variant"]:
             st.session_state.pop(k, None)
 
         with st.spinner(f"Fetching OilCorp daily orders ({start_date.strftime('%d %b')} → {end_date.strftime('%d %b %Y')})…"):
@@ -1869,13 +1847,12 @@ def page_daily_orders():
 
     if show_debug:
         st.markdown('<div class="section-label">🔍 DEBUG — API RESPONSE</div>', unsafe_allow_html=True)
-        for variant in ["A", "B"]:
-            dbg = st.session_state.get(f"daily_debug_variant_{variant}")
-            if dbg:
-                with st.expander(f"Variant {variant} response", expanded=True):
-                    st.json(dbg)
-            else:
-                st.caption(f"Variant {variant}: not yet fetched — click Fetch Daily Orders first.")
+        dbg = st.session_state.get("daily_debug_variant_A")
+        if dbg:
+            with st.expander("Variant A response", expanded=True):
+                st.json(dbg)
+        else:
+            st.caption("Variant A: not yet fetched — click Fetch Daily Orders first.")
 
     df = st.session_state.get("oilcorp_daily_df", pd.DataFrame())
     if df is None or (isinstance(df, pd.DataFrame) and df.empty):
