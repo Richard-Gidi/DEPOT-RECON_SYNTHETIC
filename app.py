@@ -6,13 +6,29 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import re
 import pdfplumber
-import PyPDF2
 import requests as _requests
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 
-load_dotenv()
+# ══════════════════════════════════════════════════════════════
+# CONFIG LOADER — reads from st.secrets first, then os.environ
+# Works identically on Streamlit Cloud (secrets.toml) and
+# local dev (.env loaded via python-dotenv).
+# ══════════════════════════════════════════════════════════════
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not required on Streamlit Cloud
+
+
+def _cfg(key: str, default: str = "") -> str:
+    """Read a config value from st.secrets, falling back to os.environ."""
+    try:
+        return str(st.secrets[key])
+    except (KeyError, AttributeError, FileNotFoundError):
+        return os.environ.get(key, default)
+
 
 st.set_page_config(
     page_title="OilCorp | Intelligence Suite",
@@ -574,26 +590,28 @@ def _align(h="center", v="center", wrap=False):
 
 
 # ══════════════════════════════════════════════════════════════
-# ENVIRONMENT CONFIG
+# ENVIRONMENT CONFIG  (st.secrets → os.environ fallback)
 # ══════════════════════════════════════════════════════════════
-OILCORP_USER_ID = os.getenv("OILCORP_USER_ID", "123293")
-OILCORP_BDC_ID  = os.getenv("OILCORP_BDC_ID",  "20900")
-NPA_COMPANY_ID  = os.getenv("NPA_COMPANY_ID",   "1")
-NPA_APP_ID      = os.getenv("NPA_APP_ID",       "3")
+OILCORP_USER_ID = _cfg("OILCORP_USER_ID", "123293")
+OILCORP_BDC_ID  = _cfg("OILCORP_BDC_ID",  "20900")
+NPA_COMPANY_ID  = _cfg("NPA_COMPANY_ID",   "1")
+NPA_APP_ID      = _cfg("NPA_APP_ID",       "3")
 
-STOCK_TXN_URL = os.getenv(
+# ── Verified endpoint URLs ───────────────────────────────────
+STOCK_TXN_URL = _cfg(
     "NPA_STOCK_TRANSACTION_URL",
-    "https://iml.npa-enterprise.com/NewNPA/home/CreateStockTransactionReport"
+    "https://iml.npa-enterprise.com/NewNPA/home/CreateStockTransactionReport",
 )
-DAILY_ORDERS_URL = os.getenv(
+# Daily Orders URL — confirmed working from browser URL inspection
+DAILY_ORDERS_URL = _cfg(
     "NPA_DAILY_ORDERS_URL",
-    "https://iml.npa-enterprise.com/NewNPA/home/CreateDailyOrderReport"
+    "https://iml.npa-enterprise.com/NewNPA/home/CreateDailyOrderReport",
 )
 
 PRODUCT_MAP = {
-    "PMS":    int(os.getenv("PRODUCT_PREMIUM_ID", "12")),
-    "GASOIL": int(os.getenv("PRODUCT_GASOIL_ID",  "14")),
-    "LPG":    int(os.getenv("PRODUCT_LPG_ID",     "28")),
+    "PMS":    int(_cfg("PRODUCT_PREMIUM_ID", "12")),
+    "GASOIL": int(_cfg("PRODUCT_GASOIL_ID",  "14")),
+    "LPG":    int(_cfg("PRODUCT_LPG_ID",     "28")),
 }
 
 MONTHS = {
@@ -604,32 +622,55 @@ MONTHS = {
 
 
 def _load_depot_map() -> dict:
+    """
+    Build depot name → depot ID mapping.
+    Reads from st.secrets first, then os.environ.
+    Keys must start with DEPOT_ (case-insensitive in env).
+    """
     depot_map = {}
+
+    # Collect raw DEPOT_ entries from both sources
+    raw_entries: dict[str, str] = {}
+
+    # 1) os.environ
     for key, value in os.environ.items():
-        if not key.startswith("DEPOT_"):
-            continue
-        raw = key[6:]
+        if key.upper().startswith("DEPOT_"):
+            raw_entries[key.upper()] = value
+
+    # 2) st.secrets (overrides env if present)
+    try:
+        for key in st.secrets:
+            if key.upper().startswith("DEPOT_"):
+                raw_entries[key.upper()] = str(st.secrets[key])
+    except Exception:
+        pass
+
+    # Canonical name fixes — maps the env-key style name → display name
+    fixes = {
+        "GHANA OIL COLTD TAKORADI":                  "GHANA OIL CO.LTD, TAKORADI",
+        "GOIL LPG BOTTLING PLANT TEMA":              "GOIL LPG BOTTLING PLANT -TEMA",
+        "GOIL LPG BOTTLING PLANT KUMASI":            "GOIL LPG BOTTLING PLANT- KUMASI",
+        "NEWGAS CYLINDER BOTTLING LIMITED TEMA":     "NEWGAS CYLINDER BOTTLING LIMITED-TEMA",
+        "CHASE PETROLEUM TEMA":                      "CHASE PETROLEUM - TEMA",
+        "TEMA FUEL COMPANY TFC":                     "TEMA FUEL COMPANY (TFC)",
+        "TEMA MULTI PRODUCTS TMPT":                  "TEMA MULTI PRODUCTS (TMPT)",
+        "TEMA OIL REFINERY TOR":                     "TEMA OIL REFINERY (TOR)",
+        "GHANA OIL COMPANY LTD SEKONDI NAVAL BASE":  "GHANA OIL COMPANY LTD (SEKONDI NAVAL BASE)",
+        "GHANSTOCK LIMITED TAKORADI":                "GHANSTOCK LIMITED (TAKORADI)",
+        "SENTUO OIL REFINERY TEMA":                  "SENTUO OIL REFINERY - TEMA",
+    }
+
+    for key, value in raw_entries.items():
+        raw  = key[6:]                          # strip DEPOT_
         name = raw.replace("_", " ").strip()
-        # Apply canonical name fixes
-        fixes = {
-            "GHANA OIL COLTD TAKORADI":              "GHANA OIL CO.LTD, TAKORADI",
-            "GOIL LPG BOTTLING PLANT TEMA":          "GOIL LPG BOTTLING PLANT -TEMA",
-            "GOIL LPG BOTTLING PLANT KUMASI":        "GOIL LPG BOTTLING PLANT- KUMASI",
-            "NEWGAS CYLINDER BOTTLING LIMITED TEMA": "NEWGAS CYLINDER BOTTLING LIMITED-TEMA",
-            "CHASE PETROLEUM TEMA":                  "CHASE PETROLEUM - TEMA",
-            "TEMA FUEL COMPANY TFC":                 "TEMA FUEL COMPANY (TFC)",
-            "TEMA MULTI PRODUCTS TMPT":              "TEMA MULTI PRODUCTS (TMPT)",
-            "TEMA OIL REFINERY TOR":                 "TEMA OIL REFINERY (TOR)",
-            "GHANA OIL COMPANY LTD SEKONDI NAVAL BASE": "GHANA OIL COMPANY LTD (SEKONDI NAVAL BASE)",
-            "GHANSTOCK LIMITED TAKORADI":            "GHANSTOCK LIMITED (TAKORADI)",
-            "SENTUO OIL REFINERY TEMA":              "SENTUO OIL REFINERY - TEMA",
-        }
         name = fixes.get(name, name)
         try:
             depot_map[name] = int(value)
         except ValueError:
             pass
+
     return depot_map
+
 
 DEPOT_MAP = _load_depot_map()
 
@@ -641,6 +682,7 @@ _HTTP_HEADERS = {
     ),
     "Accept": "application/pdf,text/html,*/*;q=0.8",
 }
+
 
 def _fetch_pdf(url: str, params: dict, timeout: int = 90) -> bytes | None:
     try:
@@ -851,7 +893,6 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
                     cl = line.strip()
                     if not cl:
                         continue
-                    # Parse metadata lines
                     if "DEPOT:" in cl:
                         m = re.search(r"DEPOT:([^-\n]+)", cl)
                         if m:
@@ -879,7 +920,6 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
-    # Keep only OilCorp Energia rows
     oilcorp_mask = df["BDC"].str.upper().str.contains("OILCORP", na=False)
     df = df[oilcorp_mask].copy()
     df = df.drop_duplicates(subset=["Order Number", "BRV", "Date", "Product"])
@@ -894,25 +934,44 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
 
 def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.DataFrame:
-    """Fetch OilCorp daily orders for a date range from the NPA API."""
+    """
+    Fetch OilCorp daily orders for a date range from the NPA portal.
+
+    Confirmed working URL pattern (from browser inspection):
+    https://iml.npa-enterprise.com/NewNPA/home/CreateDailyOrderReport
+      ?lngCompanyId=1
+      &szITSfromPersol=persol
+      &strGroupBy=DEPOT
+      &strGroupBy1=
+      &strQuery1=
+      &strQuery2=04/23/2026        ← start date  MM/DD/YYYY
+      &strQuery3=04/24/2026        ← end date    MM/DD/YYYY
+      &strQuery4=
+      &strPicHeight=1
+      &strPicWeight=1
+      &intPeriodID=-1
+      &iUserId=123293
+      &iAppId=3
+    """
     start_str = start_date.strftime("%m/%d/%Y")
     end_str   = end_date.strftime("%m/%d/%Y")
 
     params = {
-        "lngCompanyId":    NPA_COMPANY_ID,
-        "szITSfromPersol": "persol",
+        "lngCompanyId":    NPA_COMPANY_ID,       # "1"
+        "szITSfromPersol": "persol",              # lowercase — matches browser URL exactly
         "strGroupBy":      "DEPOT",
         "strGroupBy1":     "",
         "strQuery1":       "",
-        "strQuery2":       start_str,
-        "strQuery3":       end_str,
+        "strQuery2":       start_str,             # MM/DD/YYYY
+        "strQuery3":       end_str,               # MM/DD/YYYY
         "strQuery4":       "",
         "strPicHeight":    "1",
         "strPicWeight":    "1",
         "intPeriodID":     "-1",
-        "iUserId":         OILCORP_USER_ID,
-        "iAppId":          NPA_APP_ID,
+        "iUserId":         OILCORP_USER_ID,       # "123293"
+        "iAppId":          NPA_APP_ID,            # "3"
     }
+
     pdf_bytes = _fetch_pdf(DAILY_ORDERS_URL, params)
     if not pdf_bytes:
         return pd.DataFrame()
@@ -1278,7 +1337,6 @@ def page_order_report():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── File Upload ───────────────────────────────────────────
     st.markdown('<div class="section-label">01 — INPUT FILE</div>', unsafe_allow_html=True)
     uploaded = st.file_uploader(
         "Drop your Excel file here or click to browse",
@@ -1308,7 +1366,6 @@ def page_order_report():
     df["Month"] = df["DATE"].dt.month
     years = sorted(df["Year"].unique(), reverse=True)
 
-    # ── Period Selector ───────────────────────────────────────
     st.markdown('<div class="section-label">02 — REPORTING PERIOD</div>', unsafe_allow_html=True)
     with st.container():
         st.markdown('<div class="period-card">', unsafe_allow_html=True)
@@ -1447,18 +1504,19 @@ def page_order_report():
                 st.markdown('<div class="add-depot-title">Add a depot</div>', unsafe_allow_html=True)
                 addable = [d for d in sorted(DEPOT_MAP.keys()) if d not in st.session_state["configured_depots"]]
                 if addable:
-                    add_choice = st.selectbox("Choose from .env depots", options=addable,
+                    add_choice = st.selectbox("Choose from configured depots", options=addable,
                                                key="depot_add_choice", label_visibility="collapsed")
                     if st.button("➕  Add depot", key="btn_add_depot"):
                         st.session_state["configured_depots"].append(add_choice)
                         st.session_state["configured_depots"].sort()
                         st.rerun()
                 else:
-                    st.caption("All .env depots are already in the list.")
+                    st.caption("All configured depots are already in the list.")
 
                 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
                 st.markdown('<div class="add-depot-title">Custom depot name</div>', unsafe_allow_html=True)
-                custom_name = st.text_input("Type a depot name manually", placeholder="e.g. GHANA OIL CO.LTD, TAKORADI",
+                custom_name = st.text_input("Type a depot name manually",
+                                             placeholder="e.g. GHANA OIL CO.LTD, TAKORADI",
                                              key="depot_custom_input", label_visibility="collapsed")
                 if st.button("➕  Add custom depot", key="btn_add_custom") and custom_name.strip():
                     name = custom_name.strip()
@@ -1501,10 +1559,10 @@ def page_order_report():
                     depot_id = DEPOT_MAP.get(depot_name)
                     if not depot_id:
                         for prod in products_to_query:
-                            opening_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in .env"})
-                            closing_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in .env"})
+                            opening_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in config"})
+                            closing_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in config"})
                         call_n += len(products_to_query)
-                        log_lines.append(f"⚠️ {depot_name} — not in .env, skipped")
+                        log_lines.append(f"⚠️ {depot_name} — not in config, skipped")
                         log_box.markdown(f"<div class='log-console'>{'<br>'.join(log_lines[-12:])}</div>", unsafe_allow_html=True)
                         continue
 
@@ -1674,11 +1732,14 @@ def page_daily_orders():
 
     st.markdown('<div class="section-label">02 — FETCH</div>', unsafe_allow_html=True)
 
-    st.markdown("""
+    st.markdown(f"""
     <div class="info-panel">
-        Queries the NPA Daily Order Report endpoint using <strong>OilCorp Energia's</strong> user credentials
-        and filters results to only show orders where OilCorp is the listed BDC.
-        Covers all products (PMS, GASOIL, LPG) and all depots simultaneously.
+        Queries the NPA Daily Order Report endpoint (<code>CreateDailyOrderReport</code>) using
+        <strong>OilCorp Energia's</strong> credentials and filters results to only show orders
+        where OilCorp is the listed BDC. Covers all products (PMS, GASOIL, LPG) and all depots simultaneously.<br><br>
+        <strong>Active config:</strong> lngCompanyId=<code>{NPA_COMPANY_ID}</code> &nbsp;|&nbsp;
+        iUserId=<code>{OILCORP_USER_ID}</code> &nbsp;|&nbsp;
+        iAppId=<code>{NPA_APP_ID}</code>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1697,8 +1758,11 @@ def page_daily_orders():
                 st.session_state["oilcorp_daily_start"] = start_date
                 st.session_state["oilcorp_daily_end"]   = end_date
                 if df_fetched.empty:
-                    st.warning("No OilCorp daily order records found for this date range. "
-                               "Check credentials and date range, or the NPA portal may be temporarily unavailable.")
+                    st.warning(
+                        "No OilCorp daily order records found for this date range. "
+                        "Possible causes: no orders exist for this period, credentials may have "
+                        "changed, or the NPA portal is temporarily unavailable."
+                    )
                 else:
                     st.success(f"✅ {len(df_fetched):,} order records retrieved for OilCorp Energia.")
             except Exception as e:
@@ -1754,7 +1818,7 @@ def page_daily_orders():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Product breakdown ──────────────────────────────────────
+    # ── Breakdown tabs ─────────────────────────────────────────
     st.markdown('<div class="section-label">04 — BREAKDOWN</div>', unsafe_allow_html=True)
 
     tab_prod, tab_depot, tab_omc, tab_detail = st.tabs([
@@ -1806,7 +1870,6 @@ def page_daily_orders():
 
     with tab_detail:
         st.markdown('<div class="tab-heading">Full Order Detail</div>', unsafe_allow_html=True)
-        # Filter controls
         fc1, fc2, fc3 = st.columns(3)
         with fc1:
             products_all = ["All"] + sorted(df["Product"].dropna().unique().tolist()) if "Product" in df.columns else ["All"]
@@ -1880,7 +1943,6 @@ def main():
             key="nav_page",
         )
 
-        # ── Data status badges ─────────────────────────────────
         st.markdown('<hr style="border-color: #30363D; margin: 1.5rem 0 1rem 0;">', unsafe_allow_html=True)
         st.markdown("""
         <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
