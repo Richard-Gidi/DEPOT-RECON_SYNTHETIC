@@ -12,18 +12,15 @@ from datetime import datetime, timedelta
 
 # ══════════════════════════════════════════════════════════════
 # CONFIG LOADER — reads from st.secrets first, then os.environ
-# Works identically on Streamlit Cloud (secrets.toml) and
-# local dev (.env loaded via python-dotenv).
 # ══════════════════════════════════════════════════════════════
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # dotenv not required on Streamlit Cloud
+    pass
 
 
 def _cfg(key: str, default: str = "") -> str:
-    """Read a config value from st.secrets, falling back to os.environ."""
     try:
         return str(st.secrets[key])
     except (KeyError, AttributeError, FileNotFoundError):
@@ -75,7 +72,6 @@ html, body, [class*="css"], .stApp {
     max-width: 1400px !important;
 }
 
-/* ── Sidebar ───────────────────────────────────────── */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0D1117 0%, #161B22 100%) !important;
     border-right: 1px solid var(--border) !important;
@@ -92,7 +88,6 @@ html, body, [class*="css"], .stApp {
     font-size: 0.9rem !important;
 }
 
-/* ── Hero header ───────────────────────────────────── */
 .hero-header {
     background: linear-gradient(135deg, #0f1923 0%, #162032 40%, #0f1923 100%);
     border-bottom: 1px solid var(--border);
@@ -141,7 +136,6 @@ html, body, [class*="css"], .stApp {
     margin: 0;
 }
 
-/* ── Section labels ────────────────────────────────── */
 .section-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
@@ -160,7 +154,6 @@ html, body, [class*="css"], .stApp {
     background: linear-gradient(90deg, var(--border), transparent);
 }
 
-/* ── Upload zone ───────────────────────────────────── */
 [data-testid="stFileUploader"] > div {
     background: var(--bg-surface) !important;
     border: 1.5px dashed var(--border) !important;
@@ -172,7 +165,6 @@ html, body, [class*="css"], .stApp {
     background: var(--bg-card) !important;
 }
 
-/* ── Selectboxes ───────────────────────────────────── */
 .stSelectbox > div > div {
     background-color: var(--bg-surface) !important;
     border: 1px solid var(--border) !important;
@@ -200,7 +192,6 @@ html, body, [class*="css"], .stApp {
     font-size: 0.78rem !important;
 }
 
-/* ── Buttons ───────────────────────────────────────── */
 .stButton > button {
     background: var(--bg-surface) !important;
     color: var(--text-primary) !important;
@@ -233,7 +224,6 @@ html, body, [class*="css"], .stApp {
     width: 100% !important;
 }
 
-/* ── Tabs ──────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
     background: transparent !important;
     border-bottom: 1px solid var(--border) !important;
@@ -260,7 +250,6 @@ html, body, [class*="css"], .stApp {
     padding: 1.8rem 0 !important;
 }
 
-/* ── Expander ──────────────────────────────────────── */
 .stExpander {
     background: var(--bg-surface) !important;
     border: 1px solid var(--border) !important;
@@ -284,7 +273,6 @@ html, body, [class*="css"], .stApp {
     padding: 1rem 1.2rem !important;
 }
 
-/* ── Stat cards ────────────────────────────────────── */
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -326,7 +314,6 @@ html, body, [class*="css"], .stApp {
 }
 .stat-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.3rem; }
 
-/* ── Period & info cards ───────────────────────────── */
 .period-card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -346,7 +333,6 @@ html, body, [class*="css"], .stApp {
 }
 .info-panel strong { color: var(--accent-blue); }
 
-/* ── Tab headings ──────────────────────────────────── */
 .tab-heading {
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 1.5rem;
@@ -361,7 +347,6 @@ html, body, [class*="css"], .stApp {
     margin-bottom: 1.6rem;
 }
 
-/* ── Export card ───────────────────────────────────── */
 .export-card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -386,7 +371,6 @@ html, body, [class*="css"], .stApp {
     line-height: 1.5;
 }
 
-/* ── Sheet badges ──────────────────────────────────── */
 .sheet-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.4rem; }
 .sheet-badge {
     background: var(--bg-card);
@@ -403,7 +387,6 @@ html, body, [class*="css"], .stApp {
     color: var(--accent-green);
 }
 
-/* ── Depot manager ─────────────────────────────────── */
 .depot-manager {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -459,7 +442,6 @@ html, body, [class*="css"], .stApp {
     margin-bottom: 0.6rem;
 }
 
-/* ── Query counter ─────────────────────────────────── */
 .query-counter {
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -480,7 +462,6 @@ html, body, [class*="css"], .stApp {
     line-height: 1;
 }
 
-/* ── Log console ───────────────────────────────────── */
 .log-console {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
@@ -494,44 +475,24 @@ html, body, [class*="css"], .stApp {
     line-height: 1.7;
 }
 
-/* ── Custom divider ────────────────────────────────── */
 .custom-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--border), transparent);
     margin: 1.5rem 0;
 }
 
-/* ── Alerts ────────────────────────────────────────── */
 .stSuccess { background: rgba(63,185,80,0.08) !important; border-left: 3px solid var(--accent-green) !important; }
 .stWarning { background: rgba(227,179,65,0.08) !important; border-left: 3px solid var(--accent-amber) !important; }
 .stError   { background: rgba(248,81,73,0.08) !important; border-left: 3px solid var(--accent-red) !important; }
 .stInfo    { background: rgba(47,129,247,0.08) !important; border-left: 3px solid var(--accent-blue) !important; }
 
-/* ── Progress ──────────────────────────────────────── */
 .stProgress > div > div { background: var(--bg-surface) !important; border-radius: 100px !important; height: 6px !important; }
 .stProgress > div > div > div { background: linear-gradient(90deg, var(--accent-blue), #79b8ff) !important; border-radius: 100px !important; }
 
-/* ── Scrollbar ─────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-base); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* ── Daily order status pills ──────────────────────── */
-.status-pill {
-    display: inline-block;
-    padding: 0.2rem 0.7rem;
-    border-radius: 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.status-pill.released  { background: rgba(63,185,80,0.15); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.3); }
-.status-pill.submitted { background: rgba(47,129,247,0.15); color: var(--accent-blue);  border: 1px solid rgba(47,129,247,0.3); }
-.status-pill.pending   { background: rgba(227,179,65,0.15); color: var(--accent-amber); border: 1px solid rgba(227,179,65,0.3); }
-
-/* ── Daily metrics row ─────────────────────────────── */
 .daily-metric-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -590,19 +551,17 @@ def _align(h="center", v="center", wrap=False):
 
 
 # ══════════════════════════════════════════════════════════════
-# ENVIRONMENT CONFIG  (st.secrets → os.environ fallback)
+# ENVIRONMENT CONFIG
 # ══════════════════════════════════════════════════════════════
 OILCORP_USER_ID = _cfg("OILCORP_USER_ID", "123293")
 OILCORP_BDC_ID  = _cfg("OILCORP_BDC_ID",  "20900")
 NPA_COMPANY_ID  = _cfg("NPA_COMPANY_ID",   "1")
 NPA_APP_ID      = _cfg("NPA_APP_ID",       "3")
 
-# ── Verified endpoint URLs ───────────────────────────────────
 STOCK_TXN_URL = _cfg(
     "NPA_STOCK_TRANSACTION_URL",
     "https://iml.npa-enterprise.com/NewNPA/home/CreateStockTransactionReport",
 )
-# Daily Orders URL — confirmed working from browser URL inspection
 DAILY_ORDERS_URL = _cfg(
     "NPA_DAILY_ORDERS_URL",
     "https://iml.npa-enterprise.com/NewNPA/home/CreateDailyOrderReport",
@@ -622,22 +581,13 @@ MONTHS = {
 
 
 def _load_depot_map() -> dict:
-    """
-    Build depot name → depot ID mapping.
-    Reads from st.secrets first, then os.environ.
-    Keys must start with DEPOT_ (case-insensitive in env).
-    """
     depot_map = {}
-
-    # Collect raw DEPOT_ entries from both sources
     raw_entries: dict[str, str] = {}
 
-    # 1) os.environ
     for key, value in os.environ.items():
         if key.upper().startswith("DEPOT_"):
             raw_entries[key.upper()] = value
 
-    # 2) st.secrets (overrides env if present)
     try:
         for key in st.secrets:
             if key.upper().startswith("DEPOT_"):
@@ -645,7 +595,6 @@ def _load_depot_map() -> dict:
     except Exception:
         pass
 
-    # Canonical name fixes — maps the env-key style name → display name
     fixes = {
         "GHANA OIL COLTD TAKORADI":                  "GHANA OIL CO.LTD, TAKORADI",
         "GOIL LPG BOTTLING PLANT TEMA":              "GOIL LPG BOTTLING PLANT -TEMA",
@@ -661,7 +610,7 @@ def _load_depot_map() -> dict:
     }
 
     for key, value in raw_entries.items():
-        raw  = key[6:]                          # strip DEPOT_
+        raw  = key[6:]
         name = raw.replace("_", " ").strip()
         name = fixes.get(name, name)
         try:
@@ -684,12 +633,28 @@ _HTTP_HEADERS = {
 }
 
 
-def _fetch_pdf(url: str, params: dict, timeout: int = 90) -> bytes | None:
+def _fetch_pdf(url: str, params: dict, timeout: int = 90,
+               debug_key: str = "") -> bytes | None:
+    """
+    Fetch a PDF from the NPA portal.
+    If debug_key is given the raw response info is stored in st.session_state[debug_key].
+    """
     try:
         r = _requests.get(url, params=params, headers=_HTTP_HEADERS, timeout=timeout)
+        if debug_key:
+            st.session_state[debug_key] = {
+                "status_code":    r.status_code,
+                "content_type":   r.headers.get("Content-Type", ""),
+                "content_length": len(r.content),
+                "first_bytes":    r.content[:8].hex() if r.content else "",
+                "is_pdf":         r.content[:4] == b"%PDF" if r.content else False,
+                "final_url":      r.url,
+            }
         r.raise_for_status()
         return r.content if r.content[:4] == b"%PDF" else None
-    except Exception:
+    except Exception as exc:
+        if debug_key:
+            st.session_state[debug_key] = {"error": str(exc), "final_url": ""}
         return None
 
 
@@ -828,60 +793,94 @@ def fetch_oilcorp_stock_balances(year, month, depot_name, depot_id, product, pro
 # ══════════════════════════════════════════════════════════════
 # DAILY ORDERS PARSER — OilCorp only
 # ══════════════════════════════════════════════════════════════
+# Key design decisions (aligned with npa_dashboard.py logic):
+#   1. We fetch using OilCorp's own iUserId (123293) — the NPA portal
+#      returns only OilCorp's orders when authenticated as OilCorp.
+#   2. The PDF is parsed by depot grouping (strGroupBy=DEPOT).
+#   3. We capture Released + Submitted status lines — no OMC column
+#      because daily order PDFs don't reliably carry OMC names.
+#   4. BRV (truck number), depot, product, date, volume, price captured.
 
-_DAILY_LOADED_KW = {"Released", "Submitted"}
+_DAILY_STATUS_KW = {"Released", "Submitted"}
+
 _DAILY_HEADER_KW = [
     "ORDER REPORT", "National Petroleum Authority", "ORDER NUMBER",
     "ORDER DATE", "ORDER STATUS", "BDC:", "Total for :", "Printed By :",
     "Page ", "BRV NUMBER", "VOLUME",
 ]
-_PRODUCT_MAP_DAILY = {"AGO": "GASOIL", "PMS": "PREMIUM", "LPG": "LPG"}
+
+_PRODUCT_MAP_DAILY = {
+    "AGO": "GASOIL",
+    "PMS": "PMS",
+    "LPG": "LPG",
+}
 
 
 def _detect_product_daily(line: str) -> str:
-    raw = "AGO" if "AGO" in line else "LPG" if "LPG" in line else "PMS"
-    return _PRODUCT_MAP_DAILY.get(raw, raw)
+    u = line.upper()
+    if "AGO" in u or "GASOIL" in u:
+        return "GASOIL"
+    if "LPG" in u:
+        return "LPG"
+    return "PMS"
 
 
-def _parse_daily_loaded_line(line: str, product: str, depot: str) -> dict | None:
+def _parse_daily_order_line(line: str, product: str, depot: str, status: str) -> dict | None:
+    """
+    Parse a single loaded-order line from the daily order PDF.
+
+    Expected line format (space-separated tokens):
+      DD-Mon-YYYY  ORDER_NUM  <status>  BRV  PRICE  VOLUME
+
+    We do NOT attempt to extract an OMC name because the daily order
+    report groups by depot, not by company — company names are absent or
+    unreliable in this PDF format.
+    """
     tokens = line.split()
-    if len(tokens) < 6:
+    if len(tokens) < 5:
         return None
-    rel_idx = next((i for i, t in enumerate(tokens) if t in _DAILY_LOADED_KW), None)
-    if rel_idx is None or rel_idx < 2:
+
+    # Find the status keyword position
+    status_idx = next((i for i, t in enumerate(tokens) if t in _DAILY_STATUS_KW), None)
+    if status_idx is None or status_idx < 1:
         return None
+
     try:
         date_tok  = tokens[0]
-        order_num = tokens[1]
+        order_num = tokens[1] if status_idx >= 2 else ""
         volume    = float(tokens[-1].replace(",", ""))
         price     = float(tokens[-2].replace(",", ""))
         brv       = tokens[-3]
-        company   = " ".join(tokens[rel_idx + 1:-3]).strip()
+
         try:
             date_str = datetime.strptime(date_tok, "%d-%b-%Y").strftime("%Y-%m-%d")
         except Exception:
             date_str = date_tok
+
         return {
-            "Date":         date_str,
-            "Order Number": order_num,
-            "OMC":          company,
-            "BRV":          brv,
-            "Product":      product,
-            "Depot":        depot,
-            "Quantity (L)": volume,
-            "Price (₵/L)":  price,
-            "Status":       [t for t in tokens if t in _DAILY_LOADED_KW][0],
+            "Date":           date_str,
+            "Order Number":   order_num,
+            "BRV":            brv,
+            "Product":        product,
+            "Depot":          depot,
+            "Quantity (L)":   volume,
+            "Price (₵/L)":    price,
+            "Status":         tokens[status_idx],
         }
     except Exception:
         return None
 
 
 def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
-    """Parse a Daily Order PDF — keeps only OilCorp Energia as BDC."""
+    """
+    Parse the Daily Order PDF fetched under OilCorp's credentials.
+
+    The PDF is already scoped to OilCorp as the authenticated BDC user —
+    no secondary BDC name filtering is needed or performed.
+    """
     rows      = []
-    cur_depot = "Unknown"
-    cur_prod  = "PREMIUM"
-    cur_bdc   = ""
+    cur_depot   = "Unknown"
+    cur_product = "PMS"
 
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -893,25 +892,35 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
                     cl = line.strip()
                     if not cl:
                         continue
+
+                    # Depot line  —  "DEPOT: QUANTUM OIL TERMINAL LIMITED"
                     if "DEPOT:" in cl:
-                        m = re.search(r"DEPOT:([^-\n]+)", cl)
+                        m = re.search(r"DEPOT:\s*(.+)", cl)
                         if m:
                             cur_depot = m.group(1).strip()
                         continue
+
+                    # BDC line — present in the PDF but we don't filter on it;
+                    # the data is already scoped to OilCorp by the API credentials.
                     if "BDC:" in cl:
-                        m = re.search(r"BDC:([^\n]+)", cl)
-                        if m:
-                            cur_bdc = m.group(1).strip()
                         continue
-                    if "PRODUCT" in cl.upper():
-                        cur_prod = _detect_product_daily(cl)
+
+                    # Product line  —  "PRODUCT: PMS" or "PRODUCT: AGO ..."
+                    if re.match(r"^PRODUCT\s*:", cl, re.IGNORECASE) or (
+                        "PRODUCT" in cl.upper() and any(p in cl.upper() for p in ("PMS","AGO","LPG"))
+                    ):
+                        cur_product = _detect_product_daily(cl)
                         continue
+
+                    # Skip known header/footer lines
                     if any(h in cl for h in _DAILY_HEADER_KW):
                         continue
-                    if any(kw in cl for kw in _DAILY_LOADED_KW):
-                        row = _parse_daily_loaded_line(cl, cur_prod, cur_depot)
+
+                    # Data line — must contain a status keyword
+                    if any(kw in cl for kw in _DAILY_STATUS_KW):
+                        row = _parse_daily_order_line(cl, cur_product, cur_depot,
+                                                      "Released" if "Released" in cl else "Submitted")
                         if row:
-                            row["BDC"] = cur_bdc
                             rows.append(row)
     except Exception:
         pass
@@ -920,10 +929,11 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
-    oilcorp_mask = df["BDC"].str.upper().str.contains("OILCORP", na=False)
-    df = df[oilcorp_mask].copy()
+
+    # De-duplicate
     df = df.drop_duplicates(subset=["Order Number", "BRV", "Date", "Product"])
 
+    # Sort by date
     try:
         df["_ds"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.sort_values("_ds").drop(columns=["_ds"])
@@ -935,47 +945,63 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
 def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.DataFrame:
     """
-    Fetch OilCorp daily orders for a date range from the NPA portal.
+    Fetch OilCorp Energia daily orders from the NPA portal.
 
-    Confirmed working URL pattern (from browser inspection):
-    https://iml.npa-enterprise.com/NewNPA/home/CreateDailyOrderReport
-      ?lngCompanyId=1
-      &szITSfromPersol=persol
-      &strGroupBy=DEPOT
-      &strGroupBy1=
-      &strQuery1=
-      &strQuery2=04/23/2026        ← start date  MM/DD/YYYY
-      &strQuery3=04/24/2026        ← end date    MM/DD/YYYY
-      &strQuery4=
-      &strPicHeight=1
-      &strPicWeight=1
-      &intPeriodID=-1
-      &iUserId=123293
-      &iAppId=3
+    Tries two param variants in order — whichever returns a valid PDF first wins:
+      Variant A: intPeriodID=-1, strQuery1="" (browser-confirmed for daily view)
+      Variant B: intPeriodID=4,  strQuery1=" and iorderstatus=4" (used by npa_dashboard)
+
+    Both are authenticated as OilCorp (iUserId=123293) so the portal scopes
+    results to OilCorp's data automatically.
     """
     start_str = start_date.strftime("%m/%d/%Y")
     end_str   = end_date.strftime("%m/%d/%Y")
 
-    params = {
-        "lngCompanyId":    NPA_COMPANY_ID,       # "1"
-        "szITSfromPersol": "persol",              # lowercase — matches browser URL exactly
+    # Variant A — matches the browser URL captured for the daily order report
+    params_a = {
+        "lngCompanyId":    NPA_COMPANY_ID,
+        "szITSfromPersol": "persol",
         "strGroupBy":      "DEPOT",
         "strGroupBy1":     "",
         "strQuery1":       "",
-        "strQuery2":       start_str,             # MM/DD/YYYY
-        "strQuery3":       end_str,               # MM/DD/YYYY
+        "strQuery2":       start_str,
+        "strQuery3":       end_str,
         "strQuery4":       "",
         "strPicHeight":    "1",
         "strPicWeight":    "1",
         "intPeriodID":     "-1",
-        "iUserId":         OILCORP_USER_ID,       # "123293"
-        "iAppId":          NPA_APP_ID,            # "3"
+        "iUserId":         OILCORP_USER_ID,
+        "iAppId":          NPA_APP_ID,
     }
 
-    pdf_bytes = _fetch_pdf(DAILY_ORDERS_URL, params)
-    if not pdf_bytes:
-        return pd.DataFrame()
-    return extract_oilcorp_daily_orders(pdf_bytes)
+    # Variant B — matches npa_dashboard._make_daily_fetcher (released-orders filter)
+    params_b = {
+        "lngCompanyId":    NPA_COMPANY_ID,
+        "szITSfromPersol": "persol",
+        "strGroupBy":      "DEPOT",
+        "strGroupBy1":     "",
+        "strQuery1":       " and iorderstatus=4",
+        "strQuery2":       start_str,
+        "strQuery3":       end_str,
+        "strQuery4":       "",
+        "strPicHeight":    "",
+        "strPicWeight":    "",
+        "intPeriodID":     "4",
+        "iUserId":         OILCORP_USER_ID,
+        "iAppId":          NPA_APP_ID,
+    }
+
+    for variant, params in [("A", params_a), ("B", params_b)]:
+        pdf_bytes = _fetch_pdf(
+            DAILY_ORDERS_URL, params,
+            debug_key=f"daily_debug_variant_{variant}",
+        )
+        if pdf_bytes:
+            df = extract_oilcorp_daily_orders(pdf_bytes)
+            st.session_state["daily_winning_variant"] = variant
+            return df
+
+    return pd.DataFrame()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1243,12 +1269,17 @@ def write_stock_balance_sheet(ws, balance_data, sheet_type, month_label):
 
 
 def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
-    """Write the OilCorp daily orders to an Excel worksheet."""
+    """
+    Write OilCorp daily orders to an Excel worksheet.
+    Columns: Date, Order Number, BRV, Product, Depot, Quantity (L), Price (₵/L), Status
+    No OMC column — daily order PDFs do not carry reliable OMC names.
+    """
     if daily_df.empty:
         ws.cell(1, 1, "No daily order data available.")
         return
 
-    ws.cell(1, 1, "OILCORP ENERGIA LIMITED — DAILY ORDERS").font = _font(bold=True, color=HEADER_FG, size=14)
+    title = "OILCORP ENERGIA LIMITED — DAILY ORDERS"
+    ws.cell(1, 1, title).font = _font(bold=True, color=HEADER_FG, size=14)
     ws.cell(1, 1).fill = _fill(DARK_BLUE)
     ws.cell(1, 1).alignment = _align()
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(daily_df.columns))
@@ -1266,33 +1297,98 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
         for ci, val in enumerate(row_data, 1):
             c = ws.cell(excel_row, ci, val)
             c.border = _border()
-            c.alignment = _align(h="left" if ci in [1, 3, 5, 6] else "center")
+            col_name = daily_df.columns[ci - 1]
+            c.alignment = _align(h="left" if col_name in ("Date", "Depot", "BRV", "Product", "Status") else "center")
             if alt_fill:
                 c.fill = _fill(alt_fill)
-            if isinstance(val, (int, float)) and ci in [7, 8]:
+            if isinstance(val, (int, float)) and col_name in ("Quantity (L)", "Price (₵/L)"):
                 c.number_format = "#,##0.00"
+
+    # Grand total row for quantity
+    if "Quantity (L)" in daily_df.columns:
+        qty_col_idx = list(daily_df.columns).index("Quantity (L)") + 1
+        total_row   = len(daily_df) + 3
+        # Totals label
+        c = ws.cell(total_row, 1, "GRAND TOTAL")
+        c.font = _font(bold=True)
+        c.fill = _fill(YELLOW)
+        c.border = _border()
+        c.alignment = _align(h="left")
+        # Fill blanks up to qty col
+        for ci in range(2, qty_col_idx):
+            c = ws.cell(total_row, ci, "")
+            c.fill = _fill(YELLOW)
+            c.border = _border()
+        # Quantity total formula
+        col_letter = get_column_letter(qty_col_idx)
+        c = ws.cell(total_row, qty_col_idx,
+                    f"=SUM({col_letter}3:{col_letter}{total_row-1})")
+        c.font = _font(bold=True)
+        c.fill = _fill(YELLOW)
+        c.number_format = "#,##0.00"
+        c.alignment = _align()
+        c.border = _border()
+        # Remaining cols
+        for ci in range(qty_col_idx + 1, len(daily_df.columns) + 1):
+            c = ws.cell(total_row, ci, "")
+            c.fill = _fill(YELLOW)
+            c.border = _border()
 
     for ci, col in enumerate(daily_df.columns, 1):
         ws.column_dimensions[get_column_letter(ci)].width = max(14, len(str(col)) + 4)
 
 
-def generate_excel(tables, summary_df, month_label,
-                   opening_data=None, closing_data=None, daily_df=None):
+# ══════════════════════════════════════════════════════════════
+# EXCEL GENERATORS — Two separate workbooks
+# ══════════════════════════════════════════════════════════════
+
+def generate_order_request_excel(tables, summary_df, month_label,
+                                 opening_data=None, closing_data=None) -> io.BytesIO:
+    """
+    Workbook 1: Order Request Report
+    Sheets: P1, SUMMARY, OPENING STOCK (optional), CLOSING STOCK (optional)
+    """
     wb = Workbook()
     ws_p1 = wb.active
     ws_p1.title = "P1"
     write_p1_sheet(ws_p1, tables)
+
     ws_sum = wb.create_sheet("SUMMARY")
     write_summary_sheet(ws_sum, summary_df)
+
     if opening_data:
         ws_open = wb.create_sheet("OPENING STOCK")
         write_stock_balance_sheet(ws_open, opening_data, "OPENING", month_label)
+
     if closing_data:
         ws_close = wb.create_sheet("CLOSING STOCK")
         write_stock_balance_sheet(ws_close, closing_data, "CLOSING", month_label)
-    if daily_df is not None and not daily_df.empty:
-        ws_daily = wb.create_sheet("DAILY ORDERS")
-        write_daily_orders_sheet(ws_daily, daily_df)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def generate_daily_orders_excel(daily_df: pd.DataFrame,
+                                start_date: datetime, end_date: datetime) -> io.BytesIO:
+    """
+    Workbook 2: Daily Orders
+    Sheets: Daily Orders (all), PMS, GASOIL, LPG (per-product breakdowns)
+    """
+    wb = Workbook()
+    ws_all = wb.active
+    ws_all.title = "Daily Orders"
+    write_daily_orders_sheet(ws_all, daily_df)
+
+    if not daily_df.empty and "Product" in daily_df.columns:
+        for product in sorted(daily_df["Product"].dropna().unique()):
+            prod_df = daily_df[daily_df["Product"] == product].reset_index(drop=True)
+            if prod_df.empty:
+                continue
+            ws_prod = wb.create_sheet(product[:31])
+            write_daily_orders_sheet(ws_prod, prod_df)
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -1648,25 +1744,22 @@ def page_order_report():
     with tab4:
         opening_data = st.session_state.get("oilcorp_opening")
         closing_data = st.session_state.get("oilcorp_closing")
-        daily_df_exp = st.session_state.get("oilcorp_daily_df", pd.DataFrame())
         has_stock    = bool(opening_data or closing_data)
-        has_daily    = isinstance(daily_df_exp, pd.DataFrame) and not daily_df_exp.empty
 
-        p1_badge     = '<span class="sheet-badge active">P1</span>'
-        sum_badge    = '<span class="sheet-badge active">SUMMARY</span>'
-        open_badge   = f'<span class="sheet-badge {"active" if opening_data else ""}">OPENING STOCK</span>'
-        close_badge  = f'<span class="sheet-badge {"active" if closing_data else ""}">CLOSING STOCK</span>'
-        daily_badge  = f'<span class="sheet-badge {"active" if has_daily else ""}">DAILY ORDERS</span>'
+        p1_badge    = '<span class="sheet-badge active">P1</span>'
+        sum_badge   = '<span class="sheet-badge active">SUMMARY</span>'
+        open_badge  = f'<span class="sheet-badge {"active" if opening_data else ""}">OPENING STOCK</span>'
+        close_badge = f'<span class="sheet-badge {"active" if closing_data else ""}">CLOSING STOCK</span>'
 
         st.markdown(f"""
         <div class="export-card">
             <span class="export-icon">📊</span>
-            <div class="export-title">Excel Workbook</div>
+            <div class="export-title">Order Request Report — Excel Workbook</div>
             <div class="export-desc">
-                Generate a formatted .xlsx report with all active sheets for <strong>{month_label}</strong>.
+                P1 breakdown, loading summary, and stock balances for <strong>{month_label}</strong>.
             </div>
             <div class="sheet-badges">
-                {p1_badge} {sum_badge} {open_badge} {close_badge} {daily_badge}
+                {p1_badge} {sum_badge} {open_badge} {close_badge}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1674,22 +1767,20 @@ def page_order_report():
         if not has_stock:
             st.markdown("""
             <div class="info-panel" style="max-width:520px; margin: 0 auto 1rem auto; text-align:center;">
-                Visit the <strong>Stock Balances</strong> tab to fetch OILCORP stock data.<br>
-                Visit <strong>Daily Orders</strong> in the sidebar to include order data in the export.
+                Visit the <strong>Stock Balances</strong> tab to fetch OILCORP stock data first.
             </div>
             """, unsafe_allow_html=True)
 
         col_left, col_mid, col_right = st.columns([1, 2, 1])
         with col_mid:
-            if st.button("⚡  Build Excel Report", type="primary", use_container_width=True):
+            if st.button("⚡  Build Order Request Report", type="primary", use_container_width=True):
                 with st.spinner("Compiling workbook…"):
-                    excel_buf = generate_excel(
+                    excel_buf = generate_order_request_excel(
                         tables, summary_df, month_label,
                         opening_data=opening_data,
                         closing_data=closing_data,
-                        daily_df=daily_df_exp if has_daily else None,
                     )
-                fname = f"OilCorp_Report_{MONTHS[sel_month]}_{sel_year}.xlsx"
+                fname = f"OilCorp_OrderRequest_{MONTHS[sel_month]}_{sel_year}.xlsx"
                 st.download_button(
                     label=f"⬇  Download  {fname}",
                     data=excel_buf,
@@ -1734,20 +1825,28 @@ def page_daily_orders():
 
     st.markdown(f"""
     <div class="info-panel">
-        Queries the NPA Daily Order Report endpoint (<code>CreateDailyOrderReport</code>) using
-        <strong>OilCorp Energia's</strong> credentials and filters results to only show orders
-        where OilCorp is the listed BDC. Covers all products (PMS, GASOIL, LPG) and all depots simultaneously.<br><br>
+        Queries the NPA Daily Order Report endpoint (<code>CreateDailyOrderReport</code>) authenticated as
+        <strong>OilCorp Energia</strong> (iUserId=<code>{OILCORP_USER_ID}</code>).
+        The NPA portal scopes results to OilCorp's own orders automatically — no secondary
+        filtering is applied. Covers all products (PMS, GASOIL, LPG) and all depots simultaneously,
+        grouped by depot.<br><br>
         <strong>Active config:</strong> lngCompanyId=<code>{NPA_COMPANY_ID}</code> &nbsp;|&nbsp;
         iUserId=<code>{OILCORP_USER_ID}</code> &nbsp;|&nbsp;
         iAppId=<code>{NPA_APP_ID}</code>
     </div>
     """, unsafe_allow_html=True)
 
-    col_btn, _ = st.columns([1, 3])
+    col_btn, col_dbg = st.columns([1, 3])
     with col_btn:
         fetch_clicked = st.button("🔄  Fetch Daily Orders", type="primary", use_container_width=True)
+    with col_dbg:
+        show_debug = st.checkbox("🔍 Show debug info", value=False, key="daily_show_debug")
 
     if fetch_clicked:
+        # Clear previous debug state
+        for k in ["daily_debug_variant_A", "daily_debug_variant_B", "daily_winning_variant"]:
+            st.session_state.pop(k, None)
+
         with st.spinner(f"Fetching OilCorp daily orders ({start_date.strftime('%d %b')} → {end_date.strftime('%d %b %Y')})…"):
             try:
                 df_fetched = fetch_oilcorp_daily_orders(
@@ -1760,14 +1859,25 @@ def page_daily_orders():
                 if df_fetched.empty:
                     st.warning(
                         "No OilCorp daily order records found for this date range. "
-                        "Possible causes: no orders exist for this period, credentials may have "
-                        "changed, or the NPA portal is temporarily unavailable."
+                        "Check the debug info below to see what the server returned."
                     )
                 else:
-                    st.success(f"✅ {len(df_fetched):,} order records retrieved for OilCorp Energia.")
+                    winning = st.session_state.get("daily_winning_variant", "?")
+                    st.success(f"✅ {len(df_fetched):,} order records retrieved (Variant {winning}).")
             except Exception as e:
                 st.error(f"Fetch failed: {e}")
                 return
+
+    # ── Debug panel ────────────────────────────────────────────
+    if show_debug:
+        st.markdown('<div class="section-label">🔍 DEBUG — API RESPONSE</div>', unsafe_allow_html=True)
+        for variant in ["A", "B"]:
+            dbg = st.session_state.get(f"daily_debug_variant_{variant}")
+            if dbg:
+                with st.expander(f"Variant {variant} response", expanded=True):
+                    st.json(dbg)
+            else:
+                st.caption(f"Variant {variant}: not yet fetched — click Fetch Daily Orders first.")
 
     df = st.session_state.get("oilcorp_daily_df", pd.DataFrame())
     if df is None or (isinstance(df, pd.DataFrame) and df.empty):
@@ -1791,7 +1901,11 @@ def page_daily_orders():
     total_vol = df["Quantity (L)"].sum() if "Quantity (L)" in df.columns else 0
     n_orders  = len(df)
     n_depots  = df["Depot"].nunique() if "Depot" in df.columns else 0
-    total_val = (df["Quantity (L)"] * df["Price (₵/L)"]).sum() if all(c in df.columns for c in ["Quantity (L)", "Price (₵/L)"]) else 0
+    total_val = (
+        (df["Quantity (L)"] * df["Price (₵/L)"]).sum()
+        if all(c in df.columns for c in ["Quantity (L)", "Price (₵/L)"])
+        else 0
+    )
 
     st.markdown(f"""
     <div class="daily-metric-row">
@@ -1821,8 +1935,8 @@ def page_daily_orders():
     # ── Breakdown tabs ─────────────────────────────────────────
     st.markdown('<div class="section-label">04 — BREAKDOWN</div>', unsafe_allow_html=True)
 
-    tab_prod, tab_depot, tab_omc, tab_detail = st.tabs([
-        "  By Product  ", "  By Depot  ", "  By OMC  ", "  Full Detail  "
+    tab_prod, tab_depot, tab_detail = st.tabs([
+        "  By Product  ", "  By Depot  ", "  Full Detail  "
     ])
 
     with tab_prod:
@@ -1853,21 +1967,6 @@ def page_daily_orders():
         else:
             st.info("Depot column not available.")
 
-    with tab_omc:
-        st.markdown('<div class="tab-heading">OMC Summary</div>', unsafe_allow_html=True)
-        if "OMC" in df.columns and "Quantity (L)" in df.columns:
-            omc_grp = (
-                df.groupby("OMC")
-                .agg(Orders=("Order Number","count"), Volume=("Quantity (L)","sum"))
-                .reset_index()
-                .sort_values("Volume", ascending=False)
-                .rename(columns={"Volume":"Total Volume (L)"})
-            )
-            omc_grp["Total Volume (L)"] = omc_grp["Total Volume (L)"].apply(lambda x: f"{x:,.0f}")
-            st.dataframe(omc_grp, use_container_width=True, hide_index=True)
-        else:
-            st.info("OMC column not available.")
-
     with tab_detail:
         st.markdown('<div class="tab-heading">Full Order Detail</div>', unsafe_allow_html=True)
         fc1, fc2, fc3 = st.columns(3)
@@ -1875,10 +1974,10 @@ def page_daily_orders():
             products_all = ["All"] + sorted(df["Product"].dropna().unique().tolist()) if "Product" in df.columns else ["All"]
             prod_filter  = st.selectbox("Filter by Product", products_all, key="daily_prod_filter")
         with fc2:
-            depots_all  = ["All"] + sorted(df["Depot"].dropna().unique().tolist()) if "Depot" in df.columns else ["All"]
+            depots_all   = ["All"] + sorted(df["Depot"].dropna().unique().tolist()) if "Depot" in df.columns else ["All"]
             depot_filter = st.selectbox("Filter by Depot", depots_all, key="daily_depot_filter")
         with fc3:
-            status_all  = ["All"] + sorted(df["Status"].dropna().unique().tolist()) if "Status" in df.columns else ["All"]
+            status_all   = ["All"] + sorted(df["Status"].dropna().unique().tolist()) if "Status" in df.columns else ["All"]
             status_filter = st.selectbox("Filter by Status", status_all, key="daily_status_filter")
 
         filt = df.copy()
@@ -1890,26 +1989,36 @@ def page_daily_orders():
         st.caption(f"Showing **{len(filt):,}** records  |  Volume: **{filt_vol:,.0f} L**")
         st.dataframe(filt, use_container_width=True, hide_index=True, height=450)
 
-    # ── Download ───────────────────────────────────────────────
+    # ── Export ─────────────────────────────────────────────────
     st.markdown('<div class="section-label">05 — EXPORT</div>', unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="export-card">
+        <span class="export-icon">📦</span>
+        <div class="export-title">Daily Orders — Excel Workbook</div>
+        <div class="export-desc">
+            All orders + per-product breakdowns for <strong>{period_lbl}</strong>.
+            Columns: Date, Order Number, BRV, Product, Depot, Quantity (L), Price (₵/L), Status.
+        </div>
+        <div class="sheet-badges">
+            <span class="sheet-badge active">Daily Orders</span>
+            {''.join(f'<span class="sheet-badge active">{p}</span>' for p in sorted(df["Product"].dropna().unique()) if "Product" in df.columns)}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     col_l, col_m, col_r = st.columns([1, 2, 1])
     with col_m:
-        buf = io.BytesIO()
-        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-            df.to_excel(writer, sheet_name="Daily Orders", index=False)
-            if "Product" in df.columns:
-                for prod in df["Product"].unique():
-                    prod_df = df[df["Product"] == prod]
-                    if not prod_df.empty:
-                        prod_df.to_excel(writer, sheet_name=prod[:31], index=False)
-        buf.seek(0)
-        fname = f"OilCorp_DailyOrders_{d_start.strftime('%Y%m%d')}_{d_end.strftime('%Y%m%d')}.xlsx"
-        st.download_button(
-            label=f"⬇  Download {fname}",
-            data=buf,
-            file_name=fname,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        if st.button("⚡  Build Daily Orders Report", type="primary", use_container_width=True):
+            with st.spinner("Compiling workbook…"):
+                excel_buf = generate_daily_orders_excel(df, d_start, d_end)
+            fname = f"OilCorp_DailyOrders_{d_start.strftime('%Y%m%d')}_{d_end.strftime('%Y%m%d')}.xlsx"
+            st.download_button(
+                label=f"⬇  Download {fname}",
+                data=excel_buf,
+                file_name=fname,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1952,7 +2061,10 @@ def main():
 
         has_opening = bool(st.session_state.get("oilcorp_opening"))
         has_closing = bool(st.session_state.get("oilcorp_closing"))
-        has_daily   = isinstance(st.session_state.get("oilcorp_daily_df"), pd.DataFrame) and not st.session_state.get("oilcorp_daily_df", pd.DataFrame()).empty
+        has_daily   = (
+            isinstance(st.session_state.get("oilcorp_daily_df"), pd.DataFrame)
+            and not st.session_state.get("oilcorp_daily_df", pd.DataFrame()).empty
+        )
 
         def _badge(label, active):
             color = "#3FB950" if active else "#484F58"
