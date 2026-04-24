@@ -686,12 +686,12 @@ def _pnum(s):
     except ValueError:
         return None
 
-_DATE_LINE_RE = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)")
+_DATE_LINE_RE_STOCK = re.compile(r"^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)")
 _TAIL_RE = re.compile(r"(\([\d,]+\)|[\d,]+)\s+(\([\d,]+\)|[\d,]+)\s*$")
 
 def _parse_any_date_line(line: str) -> dict | None:
     line = line.strip()
-    m = _DATE_LINE_RE.match(line)
+    m = _DATE_LINE_RE_STOCK.match(line)
     if not m:
         return None
     date  = m.group(1)
@@ -791,48 +791,60 @@ def fetch_oilcorp_stock_balances(year, month, depot_name, depot_id, product, pro
 
 
 # ══════════════════════════════════════════════════════════════
-# DAILY ORDERS PARSER — OilCorp only
+# DAILY ORDERS PARSER  — FIXED
+#
+# Root cause of the original bug:
+#   The old parser looked for status keywords ("Released", "Submitted")
+#   WITHIN each data line. But the real PDF puts "Order Status : <text>"
+#   as a SECTION HEADER above the data lines — the data lines themselves
+#   contain no status text at all.
+#
+# Fix:
+#   1. Track current status from "Order Status : ..." header lines (state machine).
+#   2. Parse every date-prefixed line as a data row regardless of status.
+#   3. Handle multi-word product names: "PMS (Retail Outlets)", "AGO(Retail
+#      Outlets)", bare "LPG" — by tokenising from the right (price, volume
+#      are always the last two numeric tokens; BRV is the token before them).
 # ══════════════════════════════════════════════════════════════
-# Key design decisions (aligned with npa_dashboard.py logic):
-#   1. We fetch using OilCorp's own iUserId (123293) — the NPA portal
-#      returns only OilCorp's orders when authenticated as OilCorp.
-#   2. The PDF is parsed by depot grouping (strGroupBy=DEPOT).
-#   3. We capture Released + Submitted status lines — no OMC column
-#      because daily order PDFs don't reliably carry OMC names.
-#   4. BRV (truck number), depot, product, date, volume, price captured.
 
-_DAILY_STATUS_KW = {"Released", "Submitted"}
+# Regex: date is always DD/MM/YYYY at line start
+_DAILY_DATE_RE   = re.compile(r'^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)')
+_DAILY_STATUS_RE = re.compile(r'^order\s+status\s*:\s*(.+)', re.IGNORECASE)
+_DAILY_DEPOT_RE  = re.compile(r'^depot\s*:\s*(.+)',          re.IGNORECASE)
 
-_DAILY_HEADER_SKIP = (
+# Known product patterns — ordered longest-match-first
+_PRODUCT_PATTERNS = [
+    (re.compile(r'AGO\s*\(.*?\)',     re.IGNORECASE), 'AGO'),
+    (re.compile(r'PMS\s*\(.*?\)',     re.IGNORECASE), 'PMS'),
+    (re.compile(r'GASOIL\s*\(.*?\)', re.IGNORECASE), 'GASOIL'),
+    (re.compile(r'\bLPG\b',           re.IGNORECASE), 'LPG'),
+    (re.compile(r'\bAGO\b',           re.IGNORECASE), 'AGO'),
+    (re.compile(r'\bPMS\b',           re.IGNORECASE), 'PMS'),
+    (re.compile(r'\bGASOIL\b',        re.IGNORECASE), 'GASOIL'),
+]
+
+_DAILY_SKIP_PREFIXES = (
     "national petroleum authority",
-    "order report",
-    "order number",
+    "daily order report",
     "order date",
-    "order status",
-    "brv number",
-    "total for",
+    "bdc:",
+    "bdc :",
     "printed by",
-    "printed on",
+    "i.t.s from",
     "page ",
-    "volume",
-    "price",
-)
-
-# Matches a price/volume tail: two numbers at end of line
-# e.g.  "GH-12345 Released GT-001-A 12.45 45,000.00"
-# price = last-but-one number, volume = last number (may have commas)
-_TAIL_NUM_RE = re.compile(
-    r"([\d,]+\.?\d*)\s+([\d,]+\.?\d*)\s*$"
-)
-
-# Date at start of line: "24-Apr-2026" or "24/04/2026"
-_DATE_PREFIX_RE = re.compile(
-    r"^(\d{1,2}[-/]\w{3,}[-/]\d{4}|\d{2}/\d{2}/\d{4})"
 )
 
 
-def _parse_date_token(tok: str) -> str:
-    for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%d-%B-%Y"):
+def _canonicalise_product(raw: str) -> str:
+    """Map raw product text to a clean canonical name."""
+    for pattern, name in _PRODUCT_PATTERNS:
+        if pattern.search(raw):
+            return name
+    return raw.strip()
+
+
+def _parse_daily_date(tok: str) -> str:
+    for fmt in ("%d/%m/%Y", "%d-%b-%Y", "%d-%B-%Y"):
         try:
             return datetime.strptime(tok, fmt).strftime("%Y-%m-%d")
         except ValueError:
@@ -840,105 +852,34 @@ def _parse_date_token(tok: str) -> str:
     return tok
 
 
-def _detect_product_daily(line: str) -> str:
-    u = line.upper()
-    if "AGO" in u or "GASOIL" in u:
-        return "GASOIL"
-    if "LPG" in u:
-        return "LPG"
-    return "PMS"
-
-
-def _parse_daily_order_line(line: str, product: str, depot: str) -> dict | None:
-    """
-    Parse one data line from the daily order PDF.
-
-    The PDF has highly variable column spacing so we work from the ends:
-      - Date is always the first token (DD-Mon-YYYY)
-      - Volume is always the last number
-      - Price is always the second-to-last number
-      - BRV is the token immediately before price/volume
-      - Status keyword (Released/Submitted) is somewhere in the middle
-      - Order number is the token right after the date
-
-    We do NOT extract an OMC name — daily order PDFs group by depot and
-    do not carry reliable company names per line.
-    """
-    cl = line.strip()
-
-    # Must contain a status keyword
-    status = None
-    for kw in _DAILY_STATUS_KW:
-        if kw in cl:
-            status = kw
-            break
-    if status is None:
-        return None
-
-    # Must start with a date
-    dm = _DATE_PREFIX_RE.match(cl)
-    if not dm:
-        return None
-
-    date_str = _parse_date_token(dm.group(1))
-
-    # Extract price + volume from the tail
-    tm = _TAIL_NUM_RE.search(cl)
-    if not tm:
-        return None
-
-    try:
-        price  = float(tm.group(1).replace(",", ""))
-        volume = float(tm.group(2).replace(",", ""))
-    except ValueError:
-        return None
-
-    # Everything before the price/volume tail
-    prefix = cl[:tm.start()].strip()
-    tokens = prefix.split()
-
-    if len(tokens) < 2:
-        return None
-
-    # BRV is the last token of the prefix (immediately before price)
-    brv = tokens[-1]
-
-    # Order number is the second token (after the date token)
-    order_num = tokens[1] if len(tokens) > 1 else ""
-
-    return {
-        "Date":         date_str,
-        "Order Number": order_num,
-        "BRV":          brv,
-        "Product":      product,
-        "Depot":        depot,
-        "Quantity (L)": volume,
-        "Price (₵/L)":  price,
-        "Status":       status,
-    }
-
-
 def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
     """
-    Parse the Daily Order PDF fetched under OilCorp's credentials.
+    Parse the NPA Daily Order PDF fetched under OilCorp's credentials.
 
-    The PDF is already scoped to OilCorp as the authenticated BDC user —
-    no secondary BDC name filtering is needed or performed.
+    PDF layout (confirmed from real PDFs):
+        DEPOT:<name>
+        BDC:<bdc name>
+        Order Status : <status text>        ← SECTION HEADER (state to track)
+        DD/MM/YYYY  ORDER_NUM  PRODUCT  BRV  PRICE  VOLUME   ← data lines
+        ... more data lines at this status ...
+        Order Status : <next status>
+        ... data lines ...
+        DEPOT:<next depot>
+        ...
 
-    Strategy:
-      - Track current depot from "DEPOT:" lines
-      - Track current product from product header lines
-      - Any line that (a) starts with a date AND (b) contains a status
-        keyword is treated as an order data line
+    Column extraction for each data line (right-to-left):
+        volume  = last token  (numeric, may have commas)
+        price   = 2nd-to-last token
+        brv     = 3rd-to-last token
+        product = everything between order_number and brv (multi-word OK)
     """
-    rows        = []
-    cur_depot   = "Unknown"
-    cur_product = "PMS"
+    rows       = []
+    cur_depot  = "Unknown"
+    cur_status = "Unknown"
 
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
-                # Use generous tolerances to merge split tokens
                 text = page.extract_text(x_tolerance=3, y_tolerance=3)
                 if not text:
                     continue
@@ -950,28 +891,58 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
                     cl_lower = cl.lower()
 
-                    # Skip header/footer lines
-                    if any(cl_lower.startswith(h) for h in _DAILY_HEADER_SKIP):
-                        continue
-                    if cl_lower.startswith("bdc:") or cl_lower.startswith("bdc :"):
+                    # Skip known header/footer lines
+                    if any(cl_lower.startswith(p) for p in _DAILY_SKIP_PREFIXES):
                         continue
 
-                    # Depot line
-                    if "depot:" in cl_lower or "depot :" in cl_lower:
-                        m = re.search(r"depot\s*:\s*(.+)", cl, re.IGNORECASE)
-                        if m:
-                            cur_depot = m.group(1).strip()
+                    # ── Depot header: "DEPOT:BOST - ACCRA PLAINS" ──────────
+                    dm = _DAILY_DEPOT_RE.match(cl)
+                    if dm:
+                        cur_depot  = dm.group(1).strip()
+                        cur_status = "Unknown"
                         continue
 
-                    # Product line — e.g. "Product: PMS" or "PRODUCT AGO"
-                    if re.search(r"\bproduct\b", cl_lower):
-                        cur_product = _detect_product_daily(cl)
+                    # ── Status header: "Order Status : Depot Manager" ──────
+                    sm = _DAILY_STATUS_RE.match(cl)
+                    if sm:
+                        cur_status = sm.group(1).strip()
                         continue
 
-                    # Data line — try to parse
-                    row = _parse_daily_order_line(cl, cur_product, cur_depot)
-                    if row:
-                        rows.append(row)
+                    # ── Data line: must start with DD/MM/YYYY ──────────────
+                    dlm = _DAILY_DATE_RE.match(cl)
+                    if not dlm:
+                        continue
+
+                    date_str  = _parse_daily_date(dlm.group(1))
+                    order_num = dlm.group(2).strip()
+                    rest      = dlm.group(3).strip()
+                    # rest = "PRODUCT_TOKENS... BRV PRICE VOLUME"
+
+                    tokens = rest.split()
+                    # Need at least: 1 product token + brv + price + volume = 4
+                    if len(tokens) < 4:
+                        continue
+
+                    try:
+                        volume = float(tokens[-1].replace(",", ""))
+                        price  = float(tokens[-2].replace(",", ""))
+                    except ValueError:
+                        continue
+
+                    brv         = tokens[-3]
+                    product_raw = " ".join(tokens[:-3]).strip()
+                    product     = _canonicalise_product(product_raw)
+
+                    rows.append({
+                        "Date":         date_str,
+                        "Order Number": order_num,
+                        "BRV":          brv,
+                        "Product":      product,
+                        "Depot":        cur_depot,
+                        "Quantity (L)": volume,
+                        "Price (₵/L)":  price,
+                        "Status":       cur_status,
+                    })
 
     except Exception:
         pass
@@ -984,7 +955,7 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
     try:
         df["_ds"] = pd.to_datetime(df["Date"], errors="coerce")
-        df = df.sort_values("_ds").drop(columns=["_ds"])
+        df = df.sort_values(["_ds", "Depot", "Product"]).drop(columns=["_ds"])
     except Exception:
         pass
 
@@ -997,10 +968,7 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
 
     Tries two param variants in order — whichever returns a valid PDF first wins:
       Variant A: intPeriodID=-1, strQuery1="" (browser-confirmed for daily view)
-      Variant B: intPeriodID=4,  strQuery1=" and iorderstatus=4" (used by npa_dashboard)
-
-    Both are authenticated as OilCorp (iUserId=123293) so the portal scopes
-    results to OilCorp's data automatically.
+      Variant B: intPeriodID=4,  strQuery1=" and iorderstatus=4" (released-orders filter)
     """
     start_str = start_date.strftime("%m/%d/%Y")
     end_str   = end_date.strftime("%m/%d/%Y")
@@ -1022,7 +990,7 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
         "iAppId":          NPA_APP_ID,
     }
 
-    # Variant B — matches npa_dashboard._make_daily_fetcher (released-orders filter)
+    # Variant B — released-orders filter
     params_b = {
         "lngCompanyId":    NPA_COMPANY_ID,
         "szITSfromPersol": "persol",
@@ -1320,7 +1288,6 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
     """
     Write OilCorp daily orders to an Excel worksheet.
     Columns: Date, Order Number, BRV, Product, Depot, Quantity (L), Price (₵/L), Status
-    No OMC column — daily order PDFs do not carry reliable OMC names.
     """
     if daily_df.empty:
         ws.cell(1, 1, "No daily order data available.")
@@ -1356,18 +1323,15 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
     if "Quantity (L)" in daily_df.columns:
         qty_col_idx = list(daily_df.columns).index("Quantity (L)") + 1
         total_row   = len(daily_df) + 3
-        # Totals label
         c = ws.cell(total_row, 1, "GRAND TOTAL")
         c.font = _font(bold=True)
         c.fill = _fill(YELLOW)
         c.border = _border()
         c.alignment = _align(h="left")
-        # Fill blanks up to qty col
         for ci in range(2, qty_col_idx):
             c = ws.cell(total_row, ci, "")
             c.fill = _fill(YELLOW)
             c.border = _border()
-        # Quantity total formula
         col_letter = get_column_letter(qty_col_idx)
         c = ws.cell(total_row, qty_col_idx,
                     f"=SUM({col_letter}3:{col_letter}{total_row-1})")
@@ -1376,7 +1340,6 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
         c.number_format = "#,##0.00"
         c.alignment = _align()
         c.border = _border()
-        # Remaining cols
         for ci in range(qty_col_idx + 1, len(daily_df.columns) + 1):
             c = ws.cell(total_row, ci, "")
             c.fill = _fill(YELLOW)
@@ -1392,10 +1355,7 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
 
 def generate_order_request_excel(tables, summary_df, month_label,
                                  opening_data=None, closing_data=None) -> io.BytesIO:
-    """
-    Workbook 1: Order Request Report
-    Sheets: P1, SUMMARY, OPENING STOCK (optional), CLOSING STOCK (optional)
-    """
+    """Workbook 1: Order Request Report"""
     wb = Workbook()
     ws_p1 = wb.active
     ws_p1.title = "P1"
@@ -1420,10 +1380,7 @@ def generate_order_request_excel(tables, summary_df, month_label,
 
 def generate_daily_orders_excel(daily_df: pd.DataFrame,
                                 start_date: datetime, end_date: datetime) -> io.BytesIO:
-    """
-    Workbook 2: Daily Orders
-    Sheets: Daily Orders (all), PMS, GASOIL, LPG (per-product breakdowns)
-    """
+    """Workbook 2: Daily Orders — all orders + per-product sheets"""
     wb = Workbook()
     ws_all = wb.active
     ws_all.title = "Daily Orders"
@@ -1566,7 +1523,6 @@ def page_order_report():
         "  Export  ",
     ])
 
-    # ── TAB 1: P1 ─────────────────────────────────────────────
     with tab1:
         st.markdown('<div class="tab-heading">P1 — Depot / Product / Window</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="tab-subhead">Order requests by depot, product, and fortnightly window — {month_label}</div>', unsafe_allow_html=True)
@@ -1590,7 +1546,6 @@ def page_order_report():
                             display = pd.concat([display, total_row], ignore_index=True)
                             st.dataframe(display, use_container_width=True, hide_index=True)
 
-    # ── TAB 2: SUMMARY ────────────────────────────────────────
     with tab2:
         st.markdown('<div class="tab-heading">Loading Summary</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="tab-subhead">Aggregate volumes by depot group and product — {month_label}</div>', unsafe_allow_html=True)
@@ -1603,7 +1558,6 @@ def page_order_report():
         col_rename = {"DepotGroup": "DEPOT"} if "DepotGroup" in display_sum.columns else {}
         st.dataframe(display_sum.rename(columns=col_rename), use_container_width=True, hide_index=True)
 
-    # ── TAB 3: STOCK BALANCES ─────────────────────────────────
     with tab3:
         _init_depot_list()
         st.markdown('<div class="tab-heading">OILCORP Stock Balances</div>', unsafe_allow_html=True)
@@ -1729,7 +1683,6 @@ def page_order_report():
                 n_ok = sum(1 for r in opening_results if r["balance"] is not None)
                 st.success(f"Fetched {total_calls} combinations — **{n_ok}** with data, **{total_calls - n_ok}** with errors.")
 
-        # Display results
         opening_data = st.session_state.get("oilcorp_opening")
         closing_data = st.session_state.get("oilcorp_closing")
 
@@ -1788,7 +1741,6 @@ def page_order_report():
                     st.markdown("#### 📁 Closing Stock Balance")
                     st.dataframe(_pivot_for_display(closing_data), use_container_width=True, hide_index=True)
 
-    # ── TAB 4: EXPORT ─────────────────────────────────────────
     with tab4:
         opening_data = st.session_state.get("oilcorp_opening")
         closing_data = st.session_state.get("oilcorp_closing")
@@ -1891,7 +1843,6 @@ def page_daily_orders():
         show_debug = st.checkbox("🔍 Show debug info", value=False, key="daily_show_debug")
 
     if fetch_clicked:
-        # Clear previous debug state
         for k in ["daily_debug_variant_A", "daily_debug_variant_B", "daily_winning_variant"]:
             st.session_state.pop(k, None)
 
@@ -1916,7 +1867,6 @@ def page_daily_orders():
                 st.error(f"Fetch failed: {e}")
                 return
 
-    # ── Debug panel ────────────────────────────────────────────
     if show_debug:
         st.markdown('<div class="section-label">🔍 DEBUG — API RESPONSE</div>', unsafe_allow_html=True)
         for variant in ["A", "B"]:
@@ -1939,7 +1889,6 @@ def page_daily_orders():
         """, unsafe_allow_html=True)
         return
 
-    # ── Metrics ────────────────────────────────────────────────
     st.markdown('<div class="section-label">03 — SUMMARY</div>', unsafe_allow_html=True)
 
     d_start = st.session_state.get("oilcorp_daily_start", start_date)
@@ -1980,7 +1929,6 @@ def page_daily_orders():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Breakdown tabs ─────────────────────────────────────────
     st.markdown('<div class="section-label">04 — BREAKDOWN</div>', unsafe_allow_html=True)
 
     tab_prod, tab_depot, tab_detail = st.tabs([
@@ -2037,9 +1985,9 @@ def page_daily_orders():
         st.caption(f"Showing **{len(filt):,}** records  |  Volume: **{filt_vol:,.0f} L**")
         st.dataframe(filt, use_container_width=True, hide_index=True, height=450)
 
-    # ── Export ─────────────────────────────────────────────────
     st.markdown('<div class="section-label">05 — EXPORT</div>', unsafe_allow_html=True)
 
+    products_in_df = sorted(df["Product"].dropna().unique()) if "Product" in df.columns else []
     st.markdown(f"""
     <div class="export-card">
         <span class="export-icon">📦</span>
@@ -2050,7 +1998,7 @@ def page_daily_orders():
         </div>
         <div class="sheet-badges">
             <span class="sheet-badge active">Daily Orders</span>
-            {''.join(f'<span class="sheet-badge active">{p}</span>' for p in sorted(df["Product"].dropna().unique()) if "Product" in df.columns)}
+            {''.join(f'<span class="sheet-badge active">{p}</span>' for p in products_in_df)}
         </div>
     </div>
     """, unsafe_allow_html=True)
