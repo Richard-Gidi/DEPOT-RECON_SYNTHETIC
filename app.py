@@ -953,8 +953,8 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
       &iUserId=123293
       &iAppId=3
     """
-    start_str = start_date.strftime("%m/%d/%Y")
-    end_str   = end_date.strftime("%m/%d/%Y")
+    start_str = start_date.strftime("%Y/%m/%d")
+    end_str   = end_date.strftime("%Y/%m/%d")
 
     params = {
         "lngCompanyId":    NPA_COMPANY_ID,       # "1"
