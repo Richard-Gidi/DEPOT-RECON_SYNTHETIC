@@ -990,9 +990,24 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
         "iAppId":          NPA_APP_ID,
     }
 
+    # Variant B — released-orders filter
+    params_b = {
+        "lngCompanyId":    NPA_COMPANY_ID,
+        "szITSfromPersol": "persol",
+        "strGroupBy":      "DEPOT",
+        "strGroupBy1":     "",
+        "strQuery1":       " and iorderstatus=4",
+        "strQuery2":       start_str,
+        "strQuery3":       end_str,
+        "strQuery4":       "",
+        "strPicHeight":    "",
+        "strPicWeight":    "",
+        "intPeriodID":     "4",
+        "iUserId":         OILCORP_USER_ID,
+        "iAppId":          NPA_APP_ID,
+    }
 
-
-    for variant, params in [("A", params_a)]:
+    for variant, params in [("A", params_a), ("B", params_b)]:
         pdf_bytes = _fetch_pdf(
             DAILY_ORDERS_URL, params,
             debug_key=f"daily_debug_variant_{variant}",
@@ -1828,7 +1843,7 @@ def page_daily_orders():
         show_debug = st.checkbox("🔍 Show debug info", value=False, key="daily_show_debug")
 
     if fetch_clicked:
-        for k in ["daily_debug_variant_A"]:
+        for k in ["daily_debug_variant_A", "daily_debug_variant_B", "daily_winning_variant"]:
             st.session_state.pop(k, None)
 
         with st.spinner(f"Fetching OilCorp daily orders ({start_date.strftime('%d %b')} → {end_date.strftime('%d %b %Y')})…"):
