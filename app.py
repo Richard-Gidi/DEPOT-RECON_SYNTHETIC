@@ -803,17 +803,41 @@ def fetch_oilcorp_stock_balances(year, month, depot_name, depot_id, product, pro
 
 _DAILY_STATUS_KW = {"Released", "Submitted"}
 
-_DAILY_HEADER_KW = [
-    "ORDER REPORT", "National Petroleum Authority", "ORDER NUMBER",
-    "ORDER DATE", "ORDER STATUS", "BDC:", "Total for :", "Printed By :",
-    "Page ", "BRV NUMBER", "VOLUME",
-]
+_DAILY_HEADER_SKIP = (
+    "national petroleum authority",
+    "order report",
+    "order number",
+    "order date",
+    "order status",
+    "brv number",
+    "total for",
+    "printed by",
+    "printed on",
+    "page ",
+    "volume",
+    "price",
+)
 
-_PRODUCT_MAP_DAILY = {
-    "AGO": "GASOIL",
-    "PMS": "PMS",
-    "LPG": "LPG",
-}
+# Matches a price/volume tail: two numbers at end of line
+# e.g.  "GH-12345 Released GT-001-A 12.45 45,000.00"
+# price = last-but-one number, volume = last number (may have commas)
+_TAIL_NUM_RE = re.compile(
+    r"([\d,]+\.?\d*)\s+([\d,]+\.?\d*)\s*$"
+)
+
+# Date at start of line: "24-Apr-2026" or "24/04/2026"
+_DATE_PREFIX_RE = re.compile(
+    r"^(\d{1,2}[-/]\w{3,}[-/]\d{4}|\d{2}/\d{2}/\d{4})"
+)
+
+
+def _parse_date_token(tok: str) -> str:
+    for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%d-%B-%Y"):
+        try:
+            return datetime.strptime(tok, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return tok
 
 
 def _detect_product_daily(line: str) -> str:
@@ -825,50 +849,73 @@ def _detect_product_daily(line: str) -> str:
     return "PMS"
 
 
-def _parse_daily_order_line(line: str, product: str, depot: str, status: str) -> dict | None:
+def _parse_daily_order_line(line: str, product: str, depot: str) -> dict | None:
     """
-    Parse a single loaded-order line from the daily order PDF.
+    Parse one data line from the daily order PDF.
 
-    Expected line format (space-separated tokens):
-      DD-Mon-YYYY  ORDER_NUM  <status>  BRV  PRICE  VOLUME
+    The PDF has highly variable column spacing so we work from the ends:
+      - Date is always the first token (DD-Mon-YYYY)
+      - Volume is always the last number
+      - Price is always the second-to-last number
+      - BRV is the token immediately before price/volume
+      - Status keyword (Released/Submitted) is somewhere in the middle
+      - Order number is the token right after the date
 
-    We do NOT attempt to extract an OMC name because the daily order
-    report groups by depot, not by company — company names are absent or
-    unreliable in this PDF format.
+    We do NOT extract an OMC name — daily order PDFs group by depot and
+    do not carry reliable company names per line.
     """
-    tokens = line.split()
-    if len(tokens) < 5:
+    cl = line.strip()
+
+    # Must contain a status keyword
+    status = None
+    for kw in _DAILY_STATUS_KW:
+        if kw in cl:
+            status = kw
+            break
+    if status is None:
         return None
 
-    # Find the status keyword position
-    status_idx = next((i for i, t in enumerate(tokens) if t in _DAILY_STATUS_KW), None)
-    if status_idx is None or status_idx < 1:
+    # Must start with a date
+    dm = _DATE_PREFIX_RE.match(cl)
+    if not dm:
+        return None
+
+    date_str = _parse_date_token(dm.group(1))
+
+    # Extract price + volume from the tail
+    tm = _TAIL_NUM_RE.search(cl)
+    if not tm:
         return None
 
     try:
-        date_tok  = tokens[0]
-        order_num = tokens[1] if status_idx >= 2 else ""
-        volume    = float(tokens[-1].replace(",", ""))
-        price     = float(tokens[-2].replace(",", ""))
-        brv       = tokens[-3]
-
-        try:
-            date_str = datetime.strptime(date_tok, "%d-%b-%Y").strftime("%Y-%m-%d")
-        except Exception:
-            date_str = date_tok
-
-        return {
-            "Date":           date_str,
-            "Order Number":   order_num,
-            "BRV":            brv,
-            "Product":        product,
-            "Depot":          depot,
-            "Quantity (L)":   volume,
-            "Price (₵/L)":    price,
-            "Status":         tokens[status_idx],
-        }
-    except Exception:
+        price  = float(tm.group(1).replace(",", ""))
+        volume = float(tm.group(2).replace(",", ""))
+    except ValueError:
         return None
+
+    # Everything before the price/volume tail
+    prefix = cl[:tm.start()].strip()
+    tokens = prefix.split()
+
+    if len(tokens) < 2:
+        return None
+
+    # BRV is the last token of the prefix (immediately before price)
+    brv = tokens[-1]
+
+    # Order number is the second token (after the date token)
+    order_num = tokens[1] if len(tokens) > 1 else ""
+
+    return {
+        "Date":         date_str,
+        "Order Number": order_num,
+        "BRV":          brv,
+        "Product":      product,
+        "Depot":        depot,
+        "Quantity (L)": volume,
+        "Price (₵/L)":  price,
+        "Status":       status,
+    }
 
 
 def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
@@ -877,51 +924,55 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
     The PDF is already scoped to OilCorp as the authenticated BDC user —
     no secondary BDC name filtering is needed or performed.
+
+    Strategy:
+      - Track current depot from "DEPOT:" lines
+      - Track current product from product header lines
+      - Any line that (a) starts with a date AND (b) contains a status
+        keyword is treated as an order data line
     """
-    rows      = []
+    rows        = []
     cur_depot   = "Unknown"
     cur_product = "PMS"
 
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
-                text = page.extract_text(x_tolerance=2, y_tolerance=2)
+                # Use generous tolerances to merge split tokens
+                text = page.extract_text(x_tolerance=3, y_tolerance=3)
                 if not text:
                     continue
-                for line in text.split("\n"):
-                    cl = line.strip()
+
+                for raw_line in text.split("\n"):
+                    cl = raw_line.strip()
                     if not cl:
                         continue
 
-                    # Depot line  —  "DEPOT: QUANTUM OIL TERMINAL LIMITED"
-                    if "DEPOT:" in cl:
-                        m = re.search(r"DEPOT:\s*(.+)", cl)
+                    cl_lower = cl.lower()
+
+                    # Skip header/footer lines
+                    if any(cl_lower.startswith(h) for h in _DAILY_HEADER_SKIP):
+                        continue
+                    if cl_lower.startswith("bdc:") or cl_lower.startswith("bdc :"):
+                        continue
+
+                    # Depot line
+                    if "depot:" in cl_lower or "depot :" in cl_lower:
+                        m = re.search(r"depot\s*:\s*(.+)", cl, re.IGNORECASE)
                         if m:
                             cur_depot = m.group(1).strip()
                         continue
 
-                    # BDC line — present in the PDF but we don't filter on it;
-                    # the data is already scoped to OilCorp by the API credentials.
-                    if "BDC:" in cl:
-                        continue
-
-                    # Product line  —  "PRODUCT: PMS" or "PRODUCT: AGO ..."
-                    if re.match(r"^PRODUCT\s*:", cl, re.IGNORECASE) or (
-                        "PRODUCT" in cl.upper() and any(p in cl.upper() for p in ("PMS","AGO","LPG"))
-                    ):
+                    # Product line — e.g. "Product: PMS" or "PRODUCT AGO"
+                    if re.search(r"\bproduct\b", cl_lower):
                         cur_product = _detect_product_daily(cl)
                         continue
 
-                    # Skip known header/footer lines
-                    if any(h in cl for h in _DAILY_HEADER_KW):
-                        continue
+                    # Data line — try to parse
+                    row = _parse_daily_order_line(cl, cur_product, cur_depot)
+                    if row:
+                        rows.append(row)
 
-                    # Data line — must contain a status keyword
-                    if any(kw in cl for kw in _DAILY_STATUS_KW):
-                        row = _parse_daily_order_line(cl, cur_product, cur_depot,
-                                                      "Released" if "Released" in cl else "Submitted")
-                        if row:
-                            rows.append(row)
     except Exception:
         pass
 
@@ -929,11 +980,8 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
-
-    # De-duplicate
     df = df.drop_duplicates(subset=["Order Number", "BRV", "Date", "Product"])
 
-    # Sort by date
     try:
         df["_ds"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.sort_values("_ds").drop(columns=["_ds"])
