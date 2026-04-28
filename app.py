@@ -11,7 +11,7 @@ import os
 from datetime import datetime, timedelta
 
 # ══════════════════════════════════════════════════════════════
-# CONFIG LOADER
+# CONFIG LOADER — reads from st.secrets first, then os.environ
 # ══════════════════════════════════════════════════════════════
 try:
     from dotenv import load_dotenv
@@ -29,128 +29,123 @@ def _cfg(key: str, default: str = "") -> str:
 
 st.set_page_config(
     page_title="OilCorp | Intelligence Suite",
-    page_icon="⛽",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ══════════════════════════════════════════════════════════════
-# CSS — Clean Dark Industrial Theme
+# CUSTOM CSS — Premium Dark Industrial Theme
 # ══════════════════════════════════════════════════════════════
+
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --bg-base:        #0A0E17;
-    --bg-surface:     #111827;
-    --bg-card:        #1A2235;
-    --bg-hover:       #1E2D45;
-    --border:         #2A3A52;
-    --border-light:   #1E2D45;
-    --accent-blue:    #3B82F6;
-    --accent-blue-dim:#1D4ED8;
-    --accent-gold:    #F59E0B;
-    --accent-green:   #10B981;
-    --accent-red:     #EF4444;
-    --accent-amber:   #F59E0B;
-    --text-primary:   #F1F5F9;
-    --text-secondary: #94A3B8;
-    --text-muted:     #475569;
-    --radius:         10px;
+    --bg-base:      #0D1117;
+    --bg-surface:   #161B22;
+    --bg-card:      #1C2128;
+    --bg-hover:     #21262D;
+    --border:       #30363D;
+    --border-light: #21262D;
+    --accent-blue:  #2F81F7;
+    --accent-gold:  #D4A843;
+    --accent-green: #3FB950;
+    --accent-red:   #F85149;
+    --accent-amber: #E3B341;
+    --text-primary: #E6EDF3;
+    --text-secondary: #8B949E;
+    --text-muted:   #484F58;
 }
 
-/* ── Base ─────────────────────────────────────────────────── */
 html, body, [class*="css"], .stApp {
     background-color: var(--bg-base) !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Barlow', sans-serif !important;
     color: var(--text-primary) !important;
 }
-footer, .stDeployButton { display: none !important; visibility: hidden !important; }
+
+footer { visibility: hidden; }
+.stDeployButton { display: none; }
+
 .main .block-container {
-    padding: 0 2rem 4rem 2rem !important;
-    max-width: 1440px !important;
+    padding: 0 2.5rem 3rem 2.5rem !important;
+    max-width: 1400px !important;
 }
 
-/* ── Sidebar ──────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: var(--bg-surface) !important;
+    background: linear-gradient(180deg, #0D1117 0%, #161B22 100%) !important;
     border-right: 1px solid var(--border) !important;
-    width: 260px !important;
 }
-[data-testid="stSidebar"] > div:first-child { padding-top: 0 !important; }
-
-/* ── Sidebar Nav Items ────────────────────────────────────── */
-[data-testid="stSidebar"] .stRadio > div { gap: 4px !important; }
-[data-testid="stSidebar"] .stRadio label {
-    cursor: pointer !important;
-    border-radius: 8px !important;
-    padding: 0.6rem 1rem !important;
-    transition: background 0.15s !important;
-    display: flex !important;
-    align-items: center !important;
-}
-[data-testid="stSidebar"] .stRadio label:hover {
-    background: var(--bg-card) !important;
+[data-testid="stSidebar"] .stRadio > label {
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    letter-spacing: 0.05em !important;
 }
 [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
-    color: var(--text-secondary) !important;
+    color: var(--text-primary) !important;
+    font-family: 'Barlow', sans-serif !important;
     font-size: 0.9rem !important;
-    font-weight: 500 !important;
-    font-family: 'Inter', sans-serif !important;
 }
 
-/* ── Page Header ──────────────────────────────────────────── */
-.page-header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+.hero-header {
+    background: linear-gradient(135deg, #0f1923 0%, #162032 40%, #0f1923 100%);
     border-bottom: 1px solid var(--border);
-    padding: 2rem 2.5rem 1.8rem;
-    margin: 0 -2rem 2.5rem -2rem;
+    padding: 2.5rem 0 2rem 0;
+    margin: 0 -2.5rem 2.5rem -2.5rem;
     position: relative;
     overflow: hidden;
 }
-.page-header::after {
+.hero-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(90deg, transparent, transparent 80px,
+        rgba(47,129,247,0.03) 80px, rgba(47,129,247,0.03) 81px);
+}
+.hero-header::after {
     content: '';
     position: absolute;
     bottom: 0; left: 0; right: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
 }
-.page-header-eyebrow {
+.hero-inner { padding: 0 2.5rem; position: relative; z-index: 1; }
+.hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+    margin-bottom: 0.6rem;
+}
+.hero-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem 0;
+}
+.hero-title span { color: var(--accent-blue); }
+.hero-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 300;
+    margin: 0;
+}
+
+.section-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--accent-blue);
-    margin-bottom: 0.5rem;
-}
-.page-header-title {
-    font-size: 1.9rem;
-    font-weight: 700;
-    letter-spacing: -0.025em;
-    color: var(--text-primary);
-    margin: 0 0 0.4rem 0;
-    line-height: 1.15;
-}
-.page-header-title span { color: var(--accent-blue); }
-.page-header-subtitle {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    font-weight: 400;
-    margin: 0;
-}
-
-/* ── Section Labels ───────────────────────────────────────── */
-.section-label {
+    margin-bottom: 1rem;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent-blue);
-    margin: 2rem 0 1rem 0;
+    gap: 0.6rem;
 }
 .section-label::after {
     content: '';
@@ -159,79 +154,76 @@ footer, .stDeployButton { display: none !important; visibility: hidden !importan
     background: linear-gradient(90deg, var(--border), transparent);
 }
 
-/* ── Metric / Stat Cards ──────────────────────────────────── */
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
+[data-testid="stFileUploader"] > div {
+    background: var(--bg-surface) !important;
+    border: 1.5px dashed var(--border) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s ease !important;
 }
-.metric-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem 1.4rem;
-    position: relative;
-    overflow: hidden;
-}
-.metric-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-}
-.metric-card.blue::before  { background: var(--accent-blue); }
-.metric-card.gold::before  { background: var(--accent-gold); }
-.metric-card.green::before { background: var(--accent-green); }
-.metric-card.red::before   { background: var(--accent-red); }
-.metric-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-}
-.metric-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    color: var(--text-primary);
-}
-.metric-sub { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem; }
-
-/* ── Info Panels ──────────────────────────────────────────── */
-.info-panel {
-    background: rgba(59,130,246,0.07);
-    border: 1px solid rgba(59,130,246,0.2);
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 1.2rem;
-    line-height: 1.6;
-}
-.info-panel strong { color: var(--accent-blue); }
-.info-panel code {
-    background: rgba(59,130,246,0.12);
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: #93c5fd;
+[data-testid="stFileUploader"] > div:hover {
+    border-color: var(--accent-blue) !important;
+    background: var(--bg-card) !important;
 }
 
-/* ── Period / Config Cards ────────────────────────────────── */
-.config-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+.stSelectbox > div > div {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    color: var(--text-primary) !important;
+}
+.stSelectbox label, .stMultiSelect label {
+    color: var(--text-secondary) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+.stMultiSelect > div > div {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+}
+[data-baseweb="tag"] {
+    background-color: rgba(47,129,247,0.15) !important;
+    border: 1px solid rgba(47,129,247,0.3) !important;
+    color: var(--accent-blue) !important;
+    border-radius: 4px !important;
+    font-size: 0.78rem !important;
 }
 
-/* ── Tabs ─────────────────────────────────────────────────── */
+.stButton > button {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    font-family: 'Barlow', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+    padding: 0.6rem 1.4rem !important;
+    transition: all 0.18s ease !important;
+}
+.stButton > button:hover {
+    background: var(--bg-hover) !important;
+    border-color: var(--accent-blue) !important;
+    color: var(--accent-blue) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button[kind="primary"] {
+    background: var(--accent-blue) !important;
+    border-color: var(--accent-blue) !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+}
+.stDownloadButton > button {
+    background: linear-gradient(135deg, #1a3a5c, #1a4a7a) !important;
+    color: #7cb9f4 !important;
+    border: 1px solid rgba(47,129,247,0.35) !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    width: 100% !important;
+}
+
 .stTabs [data-baseweb="tab-list"] {
     background: transparent !important;
     border-bottom: 1px solid var(--border) !important;
@@ -241,12 +233,12 @@ footer, .stDeployButton { display: none !important; visibility: hidden !importan
     background: transparent !important;
     border: none !important;
     color: var(--text-secondary) !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Barlow', sans-serif !important;
     font-weight: 500 !important;
-    font-size: 0.875rem !important;
-    padding: 0.75rem 1.25rem !important;
+    font-size: 0.88rem !important;
+    padding: 0.8rem 1.4rem !important;
     border-bottom: 2px solid transparent !important;
-    transition: all 0.15s ease !important;
+    transition: all 0.18s ease !important;
 }
 .stTabs [data-baseweb="tab"]:hover { color: var(--text-primary) !important; }
 .stTabs [aria-selected="true"] {
@@ -255,303 +247,286 @@ footer, .stDeployButton { display: none !important; visibility: hidden !importan
 }
 .stTabs [data-baseweb="tab-panel"] {
     background: transparent !important;
-    padding: 1.5rem 0 !important;
+    padding: 1.8rem 0 !important;
 }
 
-/* ── Tab inner headings ───────────────────────────────────── */
-.tab-title {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.2rem;
-    letter-spacing: -0.01em;
-}
-.tab-desc {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    margin-bottom: 1.4rem;
-}
-
-/* ── Buttons ──────────────────────────────────────────────── */
-.stButton > button {
-    background: var(--bg-surface) !important;
-    color: var(--text-primary) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    font-family: 'Inter', sans-serif !important;
-    font-weight: 500 !important;
-    font-size: 0.875rem !important;
-    padding: 0.55rem 1.25rem !important;
-    transition: all 0.15s ease !important;
-}
-.stButton > button:hover {
-    background: var(--bg-hover) !important;
-    border-color: var(--accent-blue) !important;
-    color: var(--accent-blue) !important;
-}
-.stButton > button[kind="primary"] {
-    background: var(--accent-blue) !important;
-    border-color: var(--accent-blue) !important;
-    color: #fff !important;
-    font-weight: 600 !important;
-}
-.stButton > button[kind="primary"]:hover {
-    background: var(--accent-blue-dim) !important;
-    border-color: var(--accent-blue-dim) !important;
-    color: #fff !important;
-}
-.stDownloadButton > button {
-    background: rgba(59,130,246,0.1) !important;
-    color: #93c5fd !important;
-    border: 1px solid rgba(59,130,246,0.35) !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    width: 100% !important;
-    transition: all 0.15s !important;
-}
-.stDownloadButton > button:hover {
-    background: rgba(59,130,246,0.18) !important;
-    border-color: var(--accent-blue) !important;
-}
-
-/* ── Inputs ───────────────────────────────────────────────── */
-.stSelectbox > div > div, .stMultiSelect > div > div {
-    background-color: var(--bg-surface) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    color: var(--text-primary) !important;
-}
-.stSelectbox label, .stMultiSelect label, .stTextInput label {
-    color: var(--text-secondary) !important;
-    font-size: 0.75rem !important;
-    font-weight: 500 !important;
-    letter-spacing: 0.05em !important;
-    text-transform: uppercase !important;
-    font-family: 'JetBrains Mono', monospace !important;
-}
-.stTextInput > div > div > input {
-    background: var(--bg-surface) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    color: var(--text-primary) !important;
-}
-[data-baseweb="tag"] {
-    background-color: rgba(59,130,246,0.15) !important;
-    border: 1px solid rgba(59,130,246,0.3) !important;
-    color: var(--accent-blue) !important;
-    border-radius: 4px !important;
-    font-size: 0.78rem !important;
-}
-
-/* ── File Uploader ────────────────────────────────────────── */
-[data-testid="stFileUploader"] > div {
-    background: var(--bg-surface) !important;
-    border: 1.5px dashed var(--border) !important;
-    border-radius: var(--radius) !important;
-    transition: all 0.2s ease !important;
-}
-[data-testid="stFileUploader"] > div:hover {
-    border-color: var(--accent-blue) !important;
-    background: var(--bg-card) !important;
-}
-
-/* ── Expanders ────────────────────────────────────────────── */
 .stExpander {
     background: var(--bg-surface) !important;
     border: 1px solid var(--border) !important;
-    border-radius: var(--radius) !important;
-    margin-bottom: 0.75rem !important;
+    border-radius: 10px !important;
+    margin-bottom: 1rem !important;
     overflow: hidden !important;
 }
 .stExpander > details > summary {
     background: var(--bg-surface) !important;
     color: var(--text-primary) !important;
-    font-family: 'Inter', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.9rem !important;
-    padding: 0.9rem 1.2rem !important;
+    font-family: 'Barlow Condensed', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    padding: 1rem 1.2rem !important;
 }
 .stExpander > details[open] > summary { border-bottom: 1px solid var(--border) !important; }
-.stExpander > details > div { background: var(--bg-card) !important; padding: 1rem 1.2rem !important; }
+.stExpander > details > div {
+    background: var(--bg-card) !important;
+    padding: 1rem 1.2rem !important;
+}
 
-/* ── Alerts ───────────────────────────────────────────────── */
-.stSuccess { background: rgba(16,185,129,0.08) !important; border-left: 3px solid var(--accent-green) !important; border-radius: 8px !important; }
-.stWarning { background: rgba(245,158,11,0.08) !important; border-left: 3px solid var(--accent-amber) !important; border-radius: 8px !important; }
-.stError   { background: rgba(239,68,68,0.08)  !important; border-left: 3px solid var(--accent-red)   !important; border-radius: 8px !important; }
-.stInfo    { background: rgba(59,130,246,0.08)  !important; border-left: 3px solid var(--accent-blue)  !important; border-radius: 8px !important; }
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+}
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+}
+.stat-card.blue::before  { background: var(--accent-blue); }
+.stat-card.gold::before  { background: var(--accent-gold); }
+.stat-card.green::before { background: var(--accent-green); }
+.stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.stat-value {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+}
+.stat-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.3rem; }
 
-/* ── Progress Bar ─────────────────────────────────────────── */
-.stProgress > div > div { background: var(--bg-surface) !important; border-radius: 100px !important; height: 6px !important; }
-.stProgress > div > div > div { background: linear-gradient(90deg, var(--accent-blue), #60a5fa) !important; border-radius: 100px !important; }
+.period-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem 1.6rem;
+    margin-bottom: 1.8rem;
+}
+.info-panel {
+    background: rgba(47,129,247,0.07);
+    border: 1px solid rgba(47,129,247,0.2);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    font-size: 0.87rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.2rem;
+    line-height: 1.6;
+}
+.info-panel strong { color: var(--accent-blue); }
 
-/* ── Dataframes ───────────────────────────────────────────── */
-[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
+.tab-heading {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+}
+.tab-subhead {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.6rem;
+}
 
-/* ── Export Card ──────────────────────────────────────────── */
 .export-card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 2rem 2.5rem;
+    border-radius: 12px;
+    padding: 2rem;
     text-align: center;
     max-width: 520px;
-    margin: 1.5rem auto 2rem auto;
+    margin: 2rem auto;
 }
-.export-card-icon { font-size: 2.5rem; margin-bottom: 0.9rem; display: block; }
-.export-card-title {
-    font-size: 1.2rem;
+.export-icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+.export-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.4rem;
     font-weight: 700;
-    color: var(--text-primary);
     margin-bottom: 0.4rem;
+    color: var(--text-primary);
 }
-.export-card-desc { font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 1.3rem; line-height: 1.55; }
+.export-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.4rem;
+    line-height: 1.5;
+}
 
-/* ── Sheet Badges ─────────────────────────────────────────── */
-.sheet-badges { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.3rem; }
+.sheet-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.4rem; }
 .sheet-badge {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.7rem;
-    color: var(--text-muted);
+    padding: 0.3rem 0.8rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
     font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.03em;
 }
-.sheet-badge.on {
-    background: rgba(16,185,129,0.1);
-    border-color: rgba(16,185,129,0.3);
+.sheet-badge.active {
+    background: rgba(63,185,80,0.1);
+    border-color: rgba(63,185,80,0.3);
     color: var(--accent-green);
 }
 
-/* ── Depot Manager ────────────────────────────────────────── */
-.depot-panel {
+.depot-manager {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 12px;
     overflow: hidden;
-    margin-bottom: 1rem;
+    margin-bottom: 1.2rem;
 }
-.depot-panel-header {
+.depot-manager-header {
     background: var(--bg-card);
     border-bottom: 1px solid var(--border);
-    padding: 0.8rem 1.2rem;
+    padding: 0.9rem 1.2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
-.depot-panel-title {
-    font-size: 0.82rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+.depot-manager-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-primary);
-    font-family: 'JetBrains Mono', monospace;
 }
-.depot-count {
+.depot-count-badge {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
-    background: rgba(59,130,246,0.15);
+    font-size: 0.7rem;
+    background: rgba(47,129,247,0.15);
     color: var(--accent-blue);
-    border: 1px solid rgba(59,130,246,0.25);
+    border: 1px solid rgba(47,129,247,0.25);
     border-radius: 20px;
-    padding: 0.12rem 0.55rem;
+    padding: 0.15rem 0.6rem;
 }
-.depot-body { padding: 0.6rem 1.2rem 0.8rem; max-height: 320px; overflow-y: auto; }
-.depot-item {
+.depot-list-body { padding: 0.8rem 1.2rem 1rem 1.2rem; }
+.depot-row {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.38rem 0;
+    gap: 0.7rem;
+    padding: 0.45rem 0;
     border-bottom: 1px solid var(--border-light);
-    font-size: 0.82rem;
+    font-size: 0.87rem;
     color: var(--text-primary);
 }
-.depot-item:last-child { border-bottom: none; }
-.depot-idx { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); min-width: 18px; text-align: right; }
-.depot-tick { color: var(--accent-green); font-size: 0.8rem; }
+.depot-row:last-child { border-bottom: none; }
+.depot-row-index { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); min-width: 20px; text-align: right; }
+.depot-check { color: var(--accent-green); font-size: 0.85rem; }
+.depot-name { flex: 1; }
+.add-depot-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+}
 
-/* ── API Query Counter ────────────────────────────────────── */
 .query-counter {
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.85rem 1.1rem;
+    padding: 0.9rem 1.2rem;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.8rem;
     margin-bottom: 1rem;
-    font-size: 0.84rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
 }
 .query-number {
-    font-size: 1.5rem;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--accent-blue);
     line-height: 1;
 }
 
-/* ── Log Console ──────────────────────────────────────────── */
 .log-console {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    background: #060b14;
+    font-size: 0.75rem;
+    background: #0d1117;
     border: 1px solid var(--border);
-    color: #c9d1d9;
-    padding: 10px 14px;
+    color: #d4d4d4;
+    padding: 12px 16px;
     border-radius: 8px;
-    max-height: 190px;
+    max-height: 200px;
     overflow-y: auto;
     line-height: 1.7;
 }
 
-/* ── Divider ──────────────────────────────────────────────── */
-.divider {
+.custom-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--border), transparent);
     margin: 1.5rem 0;
 }
 
-/* ── Daily metric row ─────────────────────────────────────── */
-.daily-grid {
+.stSuccess { background: rgba(63,185,80,0.08) !important; border-left: 3px solid var(--accent-green) !important; }
+.stWarning { background: rgba(227,179,65,0.08) !important; border-left: 3px solid var(--accent-amber) !important; }
+.stError   { background: rgba(248,81,73,0.08) !important; border-left: 3px solid var(--accent-red) !important; }
+.stInfo    { background: rgba(47,129,247,0.08) !important; border-left: 3px solid var(--accent-blue) !important; }
+
+.stProgress > div > div { background: var(--bg-surface) !important; border-radius: 100px !important; height: 6px !important; }
+.stProgress > div > div > div { background: linear-gradient(90deg, var(--accent-blue), #79b8ff) !important; border-radius: 100px !important; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.daily-metric-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0.9rem;
-    margin-bottom: 1.8rem;
+    margin-bottom: 1.6rem;
 }
-.daily-card {
+.daily-metric {
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1rem 1.2rem;
 }
-.daily-card-label {
+.daily-metric-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.58rem;
+    font-size: 0.6rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.35rem;
 }
-.daily-card-value {
-    font-size: 1.5rem;
+.daily-metric-value {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.6rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
     color: var(--text-primary);
     line-height: 1;
 }
-.daily-card-sub { font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.22rem; }
-
-/* ── Scrollbar ────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.daily-metric-sub { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
-# EXCEL STYLE HELPERS
+# STYLING HELPERS
 # ══════════════════════════════════════════════════════════════
 DARK_BLUE  = "1F3864"
 MED_BLUE   = "2E75B6"
@@ -605,9 +580,6 @@ MONTHS = {
 }
 
 
-# ══════════════════════════════════════════════════════════════
-# DEPOT MAP
-# ══════════════════════════════════════════════════════════════
 def _load_depot_map() -> dict:
     depot_map = {}
     raw_entries: dict[str, str] = {}
@@ -661,10 +633,12 @@ _HTTP_HEADERS = {
 }
 
 
-# ══════════════════════════════════════════════════════════════
-# HTTP / PDF FETCH
-# ══════════════════════════════════════════════════════════════
-def _fetch_pdf(url: str, params: dict, timeout: int = 90, debug_key: str = "") -> bytes | None:
+def _fetch_pdf(url: str, params: dict, timeout: int = 90,
+               debug_key: str = "") -> bytes | None:
+    """
+    Fetch a PDF from the NPA portal.
+    If debug_key is given the raw response info is stored in st.session_state[debug_key].
+    """
     try:
         r = _requests.get(url, params=params, headers=_HTTP_HEADERS, timeout=timeout)
         if debug_key:
@@ -771,7 +745,7 @@ def parse_stock_transaction_pdf(pdf_bytes: bytes) -> list:
 
 
 # ══════════════════════════════════════════════════════════════
-# STOCK BALANCE FETCHER
+# OPENING / CLOSING STOCK FETCHER
 # ══════════════════════════════════════════════════════════════
 def fetch_oilcorp_stock_balances(year, month, depot_name, depot_id, product, product_id):
     import calendar
@@ -817,12 +791,28 @@ def fetch_oilcorp_stock_balances(year, month, depot_name, depot_id, product, pro
 
 
 # ══════════════════════════════════════════════════════════════
-# DAILY ORDERS PARSER
+# DAILY ORDERS PARSER  — FIXED
+#
+# Root cause of the original bug:
+#   The old parser looked for status keywords ("Released", "Submitted")
+#   WITHIN each data line. But the real PDF puts "Order Status : <text>"
+#   as a SECTION HEADER above the data lines — the data lines themselves
+#   contain no status text at all.
+#
+# Fix:
+#   1. Track current status from "Order Status : ..." header lines (state machine).
+#   2. Parse every date-prefixed line as a data row regardless of status.
+#   3. Handle multi-word product names: "PMS (Retail Outlets)", "AGO(Retail
+#      Outlets)", bare "LPG" — by tokenising from the right (price, volume
+#      are always the last two numeric tokens; BRV is the token before them).
 # ══════════════════════════════════════════════════════════════
+
+# Regex: date is always DD/MM/YYYY at line start
 _DAILY_DATE_RE   = re.compile(r'^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)')
 _DAILY_STATUS_RE = re.compile(r'^order\s+status\s*:\s*(.+)', re.IGNORECASE)
 _DAILY_DEPOT_RE  = re.compile(r'^depot\s*:\s*(.+)',          re.IGNORECASE)
 
+# Known product patterns — ordered longest-match-first
 _PRODUCT_PATTERNS = [
     (re.compile(r'AGO\s*\(.*?\)',     re.IGNORECASE), 'AGO'),
     (re.compile(r'PMS\s*\(.*?\)',     re.IGNORECASE), 'PMS'),
@@ -846,6 +836,7 @@ _DAILY_SKIP_PREFIXES = (
 
 
 def _canonicalise_product(raw: str) -> str:
+    """Map raw product text to a clean canonical name."""
     for pattern, name in _PRODUCT_PATTERNS:
         if pattern.search(raw):
             return name
@@ -862,6 +853,26 @@ def _parse_daily_date(tok: str) -> str:
 
 
 def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
+    """
+    Parse the NPA Daily Order PDF fetched under OilCorp's credentials.
+
+    PDF layout (confirmed from real PDFs):
+        DEPOT:<name>
+        BDC:<bdc name>
+        Order Status : <status text>        ← SECTION HEADER (state to track)
+        DD/MM/YYYY  ORDER_NUM  PRODUCT  BRV  PRICE  VOLUME   ← data lines
+        ... more data lines at this status ...
+        Order Status : <next status>
+        ... data lines ...
+        DEPOT:<next depot>
+        ...
+
+    Column extraction for each data line (right-to-left):
+        volume  = last token  (numeric, may have commas)
+        price   = 2nd-to-last token
+        brv     = 3rd-to-last token
+        product = everything between order_number and brv (multi-word OK)
+    """
     rows       = []
     cur_depot  = "Unknown"
     cur_status = "Unknown"
@@ -872,39 +883,56 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
                 text = page.extract_text(x_tolerance=3, y_tolerance=3)
                 if not text:
                     continue
+
                 for raw_line in text.split("\n"):
                     cl = raw_line.strip()
                     if not cl:
                         continue
+
                     cl_lower = cl.lower()
+
+                    # Skip known header/footer lines
                     if any(cl_lower.startswith(p) for p in _DAILY_SKIP_PREFIXES):
                         continue
+
+                    # ── Depot header: "DEPOT:BOST - ACCRA PLAINS" ──────────
                     dm = _DAILY_DEPOT_RE.match(cl)
                     if dm:
                         cur_depot  = dm.group(1).strip()
                         cur_status = "Unknown"
                         continue
+
+                    # ── Status header: "Order Status : Depot Manager" ──────
                     sm = _DAILY_STATUS_RE.match(cl)
                     if sm:
                         cur_status = sm.group(1).strip()
                         continue
+
+                    # ── Data line: must start with DD/MM/YYYY ──────────────
                     dlm = _DAILY_DATE_RE.match(cl)
                     if not dlm:
                         continue
+
                     date_str  = _parse_daily_date(dlm.group(1))
                     order_num = dlm.group(2).strip()
                     rest      = dlm.group(3).strip()
-                    tokens    = rest.split()
+                    # rest = "PRODUCT_TOKENS... BRV PRICE VOLUME"
+
+                    tokens = rest.split()
+                    # Need at least: 1 product token + brv + price + volume = 4
                     if len(tokens) < 4:
                         continue
+
                     try:
                         volume = float(tokens[-1].replace(",", ""))
                         price  = float(tokens[-2].replace(",", ""))
                     except ValueError:
                         continue
+
                     brv         = tokens[-3]
                     product_raw = " ".join(tokens[:-3]).strip()
                     product     = _canonicalise_product(product_raw)
+
                     rows.append({
                         "Date":         date_str,
                         "Order Number": order_num,
@@ -915,6 +943,7 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
                         "Price (₵/L)":  price,
                         "Status":       cur_status,
                     })
+
     except Exception:
         pass
 
@@ -923,17 +952,24 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     df = df.drop_duplicates(subset=["Order Number", "BRV", "Date", "Product"])
+
     try:
         df["_ds"] = pd.to_datetime(df["Date"], errors="coerce")
         df = df.sort_values(["_ds", "Depot", "Product"]).drop(columns=["_ds"])
     except Exception:
         pass
+
     return df.reset_index(drop=True)
 
 
 def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.DataFrame:
+    """
+    Fetch OilCorp Energia daily orders from the NPA portal using Variant A
+    (intPeriodID=-1, strQuery1="" — browser-confirmed for daily view).
+    """
     start_str = start_date.strftime("%m/%d/%Y")
     end_str   = end_date.strftime("%m/%d/%Y")
+
     params = {
         "lngCompanyId":    NPA_COMPANY_ID,
         "szITSfromPersol": "persol",
@@ -949,16 +985,21 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
         "iUserId":         OILCORP_USER_ID,
         "iAppId":          NPA_APP_ID,
     }
-    pdf_bytes = _fetch_pdf(DAILY_ORDERS_URL, params, debug_key="daily_debug_variant_A")
+
+    pdf_bytes = _fetch_pdf(
+        DAILY_ORDERS_URL, params,
+        debug_key="daily_debug_variant_A",
+    )
     if pdf_bytes:
         df = extract_oilcorp_daily_orders(pdf_bytes)
         st.session_state["daily_winning_variant"] = "A"
         return df
+
     return pd.DataFrame()
 
 
 # ══════════════════════════════════════════════════════════════
-# ORDER REQUEST DATA LOADER + BUILDERS
+# ORDER REQUEST DATA LOADER
 # ══════════════════════════════════════════════════════════════
 def load_order_data(file):
     df = pd.read_excel(file, sheet_name="ORDER REQUEST", header=8)
@@ -971,6 +1012,74 @@ def load_order_data(file):
     return df
 
 
+# ══════════════════════════════════════════════════════════════
+# GOOGLE DRIVE ORDER REQUEST FETCHER
+# ══════════════════════════════════════════════════════════════
+
+def _extract_gdrive_file_id(url: str) -> str | None:
+    """Extract the file ID from a Google Drive share URL."""
+    import re as _re
+    # Pattern: /d/<ID>/
+    m = _re.search(r"/d/([a-zA-Z0-9_-]{10,})", url)
+    if m:
+        return m.group(1)
+    # Pattern: id=<ID>
+    m = _re.search(r"[?&]id=([a-zA-Z0-9_-]{10,})", url)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _gdrive_direct_download_url(file_id: str) -> str:
+    return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+
+def fetch_order_data_from_drive() -> tuple[pd.DataFrame | None, str]:
+    """
+    Try to download the ORDER REQUEST spreadsheet from Google Drive.
+    Returns (DataFrame, error_message).
+    error_message is "" on success.
+    """
+    depot_link = _cfg("DEPOT_LINK", "")
+    if not depot_link:
+        return None, "DEPOT_LINK secret is not configured."
+
+    file_id = _extract_gdrive_file_id(depot_link)
+    if not file_id:
+        return None, "Could not extract a file ID from DEPOT_LINK."
+
+    download_url = _gdrive_direct_download_url(file_id)
+
+    try:
+        session = _requests.Session()
+        # First request — may get a virus-scan warning page for large files
+        resp = session.get(download_url, timeout=60)
+        resp.raise_for_status()
+
+        # Handle Google's "virus scan" confirmation page
+        content_type = resp.headers.get("Content-Type", "")
+        if "text/html" in content_type:
+            # Look for the confirmation token
+            import re as _re
+            token_match = _re.search(r'confirm=([0-9A-Za-z_\-]+)', resp.text)
+            if token_match:
+                confirm_url = download_url + "&confirm=" + token_match.group(1)
+                resp = session.get(confirm_url, timeout=60)
+                resp.raise_for_status()
+            else:
+                return None, "Google Drive returned an HTML page instead of the file (possibly needs login or sharing is restricted)."
+
+        file_bytes = io.BytesIO(resp.content)
+        df = load_order_data(file_bytes)
+        return df, ""
+
+    except Exception as exc:
+        return None, f"Download failed: {exc}"
+
+
+# ══════════════════════════════════════════════════════════════
+# P1 / SUMMARY BUILDERS
+# ══════════════════════════════════════════════════════════════
 def build_p1_tables(df):
     tables = []
     depots = sorted(df["Depot"].dropna().unique())
@@ -1087,7 +1196,7 @@ def write_summary_sheet(ws, summary_df):
                 c.number_format = "#,##0"
             if is_total:
                 c.font = _font(bold=True)
-    for col, width in zip(["A","B","C","D","E"], [20,14,14,10,16]):
+    for col, width in zip(["A", "B", "C", "D", "E"], [20, 14, 14, 10, 16]):
         ws.column_dimensions[col].width = width
 
 
@@ -1106,7 +1215,7 @@ def _cell(ws, row, col, value, bold=False, bg=None, fg="000000",
 
 
 def write_stock_balance_sheet(ws, balance_data, sheet_type, month_label):
-    PRODUCTS   = ["PMS", "GASOIL", "LPG"]
+    PRODUCTS  = ["PMS", "GASOIL", "LPG"]
     title_text = f"OILCORP ENERGIA LIMITED — {sheet_type} STOCK BALANCE ({month_label})"
     num_cols   = len(PRODUCTS) + 3
     ws.cell(1, 1, title_text).font = _font(bold=True, color=HEADER_FG, size=14)
@@ -1219,20 +1328,27 @@ def write_stock_balance_sheet(ws, balance_data, sheet_type, month_label):
 
 
 def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
+    """
+    Write OilCorp daily orders to an Excel worksheet.
+    Columns: Date, Order Number, BRV, Product, Depot, Quantity (L), Price (₵/L), Status
+    """
     if daily_df.empty:
         ws.cell(1, 1, "No daily order data available.")
         return
+
     title = "OILCORP ENERGIA LIMITED — DAILY ORDERS"
     ws.cell(1, 1, title).font = _font(bold=True, color=HEADER_FG, size=14)
     ws.cell(1, 1).fill = _fill(DARK_BLUE)
     ws.cell(1, 1).alignment = _align()
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(daily_df.columns))
+
     for ci, col in enumerate(daily_df.columns, 1):
         c = ws.cell(2, ci, col)
         c.font = _font(bold=True, color=HEADER_FG)
         c.fill = _fill(MED_BLUE)
         c.alignment = _align()
         c.border = _border()
+
     for ri, row_data in daily_df.iterrows():
         excel_row = ri + 3
         alt_fill  = "F2F2F2" if ri % 2 == 0 else None
@@ -1240,11 +1356,13 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
             c = ws.cell(excel_row, ci, val)
             c.border = _border()
             col_name = daily_df.columns[ci - 1]
-            c.alignment = _align(h="left" if col_name in ("Date","Depot","BRV","Product","Status") else "center")
+            c.alignment = _align(h="left" if col_name in ("Date", "Depot", "BRV", "Product", "Status") else "center")
             if alt_fill:
                 c.fill = _fill(alt_fill)
             if isinstance(val, (int, float)) and col_name in ("Quantity (L)", "Price (₵/L)"):
                 c.number_format = "#,##0.00"
+
+    # Grand total row for quantity
     if "Quantity (L)" in daily_df.columns:
         qty_col_idx = list(daily_df.columns).index("Quantity (L)") + 1
         total_row   = len(daily_df) + 3
@@ -1258,7 +1376,8 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
             c.fill = _fill(YELLOW)
             c.border = _border()
         col_letter = get_column_letter(qty_col_idx)
-        c = ws.cell(total_row, qty_col_idx, f"=SUM({col_letter}3:{col_letter}{total_row-1})")
+        c = ws.cell(total_row, qty_col_idx,
+                    f"=SUM({col_letter}3:{col_letter}{total_row-1})")
         c.font = _font(bold=True)
         c.fill = _fill(YELLOW)
         c.number_format = "#,##0.00"
@@ -1268,27 +1387,34 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
             c = ws.cell(total_row, ci, "")
             c.fill = _fill(YELLOW)
             c.border = _border()
+
     for ci, col in enumerate(daily_df.columns, 1):
         ws.column_dimensions[get_column_letter(ci)].width = max(14, len(str(col)) + 4)
 
 
 # ══════════════════════════════════════════════════════════════
-# EXCEL GENERATORS
+# EXCEL GENERATORS — Two separate workbooks
 # ══════════════════════════════════════════════════════════════
+
 def generate_order_request_excel(tables, summary_df, month_label,
                                  opening_data=None, closing_data=None) -> io.BytesIO:
+    """Workbook 1: Order Request Report"""
     wb = Workbook()
     ws_p1 = wb.active
     ws_p1.title = "P1"
     write_p1_sheet(ws_p1, tables)
+
     ws_sum = wb.create_sheet("SUMMARY")
     write_summary_sheet(ws_sum, summary_df)
+
     if opening_data:
         ws_open = wb.create_sheet("OPENING STOCK")
         write_stock_balance_sheet(ws_open, opening_data, "OPENING", month_label)
+
     if closing_data:
         ws_close = wb.create_sheet("CLOSING STOCK")
         write_stock_balance_sheet(ws_close, closing_data, "CLOSING", month_label)
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -1297,10 +1423,12 @@ def generate_order_request_excel(tables, summary_df, month_label,
 
 def generate_daily_orders_excel(daily_df: pd.DataFrame,
                                 start_date: datetime, end_date: datetime) -> io.BytesIO:
+    """Workbook 2: Daily Orders — all orders + per-product sheets"""
     wb = Workbook()
     ws_all = wb.active
     ws_all.title = "Daily Orders"
     write_daily_orders_sheet(ws_all, daily_df)
+
     if not daily_df.empty and "Product" in daily_df.columns:
         for product in sorted(daily_df["Product"].dropna().unique()):
             prod_df = daily_df[daily_df["Product"] == product].reset_index(drop=True)
@@ -1308,6 +1436,7 @@ def generate_daily_orders_excel(daily_df: pd.DataFrame,
                 continue
             ws_prod = wb.create_sheet(product[:31])
             write_daily_orders_sheet(ws_prod, prod_df)
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -1339,79 +1468,103 @@ def _init_depot_list():
 
 
 # ══════════════════════════════════════════════════════════════
-# REUSABLE COMPONENTS
-# ══════════════════════════════════════════════════════════════
-def render_page_header(eyebrow: str, title: str, title_accent: str, subtitle: str):
-    """Renders a consistent top-of-page banner."""
-    st.markdown(f"""
-    <div class="page-header">
-        <div class="page-header-eyebrow">▸ {eyebrow}</div>
-        <h1 class="page-header-title">{title} <span>{title_accent}</span></h1>
-        <p class="page-header-subtitle">{subtitle}</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_section(number: str, label: str):
-    """Renders a numbered section divider."""
-    st.markdown(f'<div class="section-label">{number} — {label}</div>', unsafe_allow_html=True)
-
-
-def render_empty_state(icon: str, message: str):
-    """Renders a centred empty-state placeholder."""
-    st.markdown(f"""
-    <div style="text-align:center; padding:3rem 0; color:var(--text-muted);">
-        <div style="font-size:2.5rem; margin-bottom:0.75rem;">{icon}</div>
-        <div style="font-family:'JetBrains Mono',monospace; font-size:0.72rem;
-                    letter-spacing:0.12em; text-transform:uppercase;">{message}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════
 # PAGE: ORDER REQUEST REPORT
 # ══════════════════════════════════════════════════════════════
 def page_order_report():
-    render_page_header(
-        eyebrow   = "OILCORP ENERGIA LIMITED",
-        title     = "Order Request",
-        title_accent = "Report",
-        subtitle  = "Upload an ORDER REQUEST sheet to generate P1, Summary and Stock Balance reports.",
-    )
+    st.markdown("""
+    <div class="hero-header">
+      <div class="hero-inner">
+        <div class="hero-eyebrow">▸ OILCORP ENERGIA LIMITED</div>
+        <h1 class="hero-title">Order Request <span>Report</span></h1>
+        <p class="hero-subtitle">Order Request data is loaded automatically. P1, Summary and Stock Balance reports are generated instantly.</p>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # ── 01  INPUT FILE ─────────────────────────────────────────
-    render_section("01", "Input File")
-    uploaded = st.file_uploader(
-        "Drop your Excel file here (.xlsx)", type=["xlsx"],
-        label_visibility="visible", key="order_upload",
-    )
+    st.markdown('<div class="section-label">01 — INPUT FILE</div>', unsafe_allow_html=True)
 
-    if not uploaded:
-        render_empty_state("📂", "Awaiting .xlsx upload")
-        return
+    # ── Try Google Drive first ────────────────────────────────────
+    df = None
+    drive_error = ""
 
-    with st.spinner("Parsing workbook…"):
-        try:
-            df = load_order_data(uploaded)
-        except Exception as e:
-            st.error(f"Could not read ORDER REQUEST sheet: {e}")
+    if "order_df_cache" not in st.session_state:
+        with st.spinner("Fetching Order Request data from source…"):
+            df_drive, drive_error = fetch_order_data_from_drive()
+            if df_drive is not None:
+                st.session_state["order_df_cache"] = df_drive
+                st.session_state["order_df_source"] = "drive"
+            else:
+                st.session_state["order_df_source"] = "upload"
+
+    if st.session_state.get("order_df_source") == "drive" and "order_df_cache" in st.session_state:
+        col_info, col_reload = st.columns([5, 1])
+        with col_info:
+            st.markdown(
+                '<div class="info-panel" style="margin-bottom:0.8rem;">📡  '
+                '<strong>Live data</strong> — Order Request loaded automatically. '
+                'Use <em>Refresh</em> to pull the latest version.</div>',
+                unsafe_allow_html=True,
+            )
+        with col_reload:
+            if st.button("🔄 Refresh", key="drive_reload", use_container_width=True):
+                st.session_state.pop("order_df_cache", None)
+                st.session_state.pop("order_df_source", None)
+                st.rerun()
+        df = st.session_state["order_df_cache"]
+
+    else:
+        # Drive not available — allow manual upload
+        if drive_error:
+            st.markdown(
+                '<div class="info-panel" style="border-color:rgba(248,81,73,0.3);background:rgba(248,81,73,0.07);">'
+                '⚠️  Could not retrieve file automatically. Please upload the Order Request file manually.</div>',
+                unsafe_allow_html=True,
+            )
+
+        uploaded = st.file_uploader(
+            "Drop your ORDER REQUEST Excel file here or click to browse",
+            type=["xlsx"], label_visibility="visible",
+            key="order_upload",
+        )
+
+        if not uploaded:
+            st.markdown("""
+            <div style="text-align:center; padding: 3rem 0; color: var(--text-muted);">
+                <div style="font-size:2.5rem; margin-bottom:0.8rem;">📂</div>
+                <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase;">
+                    Awaiting .xlsx upload
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             return
+
+        with st.spinner("Parsing workbook…"):
+            try:
+                df = load_order_data(uploaded)
+                st.session_state["order_df_cache"] = df
+                st.session_state["order_df_source"] = "upload"
+            except Exception as e:
+                st.error(f"Could not read ORDER REQUEST sheet: {e}")
+                return
+
+    if df is None or (hasattr(df, 'empty') and df.empty):
+        st.error("No valid data could be loaded. Please check the source file.")
+        return
 
     df["Year"]  = df["DATE"].dt.year
     df["Month"] = df["DATE"].dt.month
-    years       = sorted(df["Year"].unique(), reverse=True)
+    years = sorted(df["Year"].unique(), reverse=True)
 
-    # ── 02  REPORTING PERIOD ───────────────────────────────────
-    render_section("02", "Reporting Period")
-    st.markdown('<div class="config-card">', unsafe_allow_html=True)
-    col1, col2, _ = st.columns([1, 1, 2])
-    with col1:
-        sel_year = st.selectbox("Year", years, key="or_year")
-    with col2:
-        avail_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
-        sel_month = st.selectbox("Month", avail_months,
-                                 format_func=lambda m: MONTHS[m], key="or_month")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">02 — REPORTING PERIOD</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="period-card">', unsafe_allow_html=True)
+        col1, col2, _ = st.columns([1, 1, 2])
+        with col1:
+            sel_year = st.selectbox("Year", years, key="or_year")
+        with col2:
+            avail_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
+            sel_month = st.selectbox("Month", avail_months, format_func=lambda m: MONTHS[m], key="or_month")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     month_label = f"{MONTHS[sel_month]} {sel_year}"
     filtered    = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
@@ -1422,29 +1575,26 @@ def page_order_report():
 
     w1 = filtered[filtered["DATE"].dt.day <= 15]
     w2 = filtered[filtered["DATE"].dt.day >= 16]
+    total_qty = filtered["Quantity"].sum()
+    n_omcs    = filtered["OMC"].nunique()
+    n_depots  = filtered["Depot"].nunique()
 
-    # ── Metrics ────────────────────────────────────────────────
     st.markdown(f"""
-    <div class="metric-grid">
-      <div class="metric-card blue">
-        <div class="metric-label">Total Records</div>
-        <div class="metric-value">{len(filtered):,}</div>
-        <div class="metric-sub">W1: {len(w1):,} · W2: {len(w2):,}</div>
+    <div class="stat-grid">
+      <div class="stat-card blue">
+        <div class="stat-label">Total Records</div>
+        <div class="stat-value">{len(filtered):,}</div>
+        <div class="stat-sub">W1: {len(w1):,} &nbsp;·&nbsp; W2: {len(w2):,}</div>
       </div>
-      <div class="metric-card gold">
-        <div class="metric-label">Total Volume (L)</div>
-        <div class="metric-value">{filtered["Quantity"].sum():,.0f}</div>
-        <div class="metric-sub">{month_label}</div>
+      <div class="stat-card gold">
+        <div class="stat-label">Total Volume (L)</div>
+        <div class="stat-value">{total_qty:,.0f}</div>
+        <div class="stat-sub">{month_label}</div>
       </div>
-      <div class="metric-card green">
-        <div class="metric-label">Active OMCs</div>
-        <div class="metric-value">{filtered["OMC"].nunique()}</div>
-        <div class="metric-sub">Unique companies</div>
-      </div>
-      <div class="metric-card red">
-        <div class="metric-label">Active Depots</div>
-        <div class="metric-value">{filtered["Depot"].nunique()}</div>
-        <div class="metric-sub">Unique depots</div>
+      <div class="stat-card green">
+        <div class="stat-label">OMCs · Depots</div>
+        <div class="stat-value">{n_omcs} <span style="font-size:1.2rem;color:var(--text-muted)">·</span> {n_depots}</div>
+        <div class="stat-sub">Active this period</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1452,20 +1602,18 @@ def page_order_report():
     tables     = build_p1_tables(filtered)
     summary_df = build_summary(filtered)
 
-    # ── 03  REPORT VIEWS ───────────────────────────────────────
-    render_section("03", "Report Views")
+    st.markdown('<div class="section-label">03 — REPORT VIEWS</div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3, tab4 = st.tabs([
-        "📋  P1 — Depot Breakdown",
-        "📊  Loading Summary",
-        "🏭  Stock Balances",
-        "⬇  Export",
+        "  P1 — Depot Breakdown  ",
+        "  Loading Summary  ",
+        "  Stock Balances  ",
+        "  Export  ",
     ])
 
-    # ── Tab 1: P1 ──────────────────────────────────────────────
     with tab1:
-        st.markdown(f'<div class="tab-title">P1 — Depot / Product / Window</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="tab-desc">Order requests by depot, product, and fortnightly window — {month_label}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="tab-heading">P1 — Depot / Product / Window</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="tab-subhead">Order requests by depot, product, and fortnightly window — {month_label}</div>', unsafe_allow_html=True)
         if not tables:
             st.info("No data to display for this period.")
         else:
@@ -1486,10 +1634,9 @@ def page_order_report():
                             display = pd.concat([display, total_row], ignore_index=True)
                             st.dataframe(display, use_container_width=True, hide_index=True)
 
-    # ── Tab 2: Summary ─────────────────────────────────────────
     with tab2:
-        st.markdown('<div class="tab-title">Loading Summary</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="tab-desc">Aggregate volumes by depot group and product — {month_label}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="tab-heading">Loading Summary</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="tab-subhead">Aggregate volumes by depot group and product — {month_label}</div>', unsafe_allow_html=True)
         display_sum = summary_df.copy()
         for col in ["AGO", "PMS", "LPG", "GRAND TOTAL"]:
             if col in display_sum.columns:
@@ -1499,12 +1646,10 @@ def page_order_report():
         col_rename = {"DepotGroup": "DEPOT"} if "DepotGroup" in display_sum.columns else {}
         st.dataframe(display_sum.rename(columns=col_rename), use_container_width=True, hide_index=True)
 
-    # ── Tab 3: Stock Balances ──────────────────────────────────
     with tab3:
         _init_depot_list()
-        st.markdown('<div class="tab-title">OILCORP Stock Balances</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="tab-desc">NPA stock transaction ledger for OILCORP ENERGIA LIMITED — {month_label}</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="tab-heading">OILCORP Stock Balances</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="tab-subhead">NPA stock transaction ledger for OILCORP ENERGIA LIMITED — {month_label}</div>', unsafe_allow_html=True)
         st.markdown("""
         <div class="info-panel">
             <strong>Opening Balance</strong> — First <em>Stock Take</em> after the b/fwd row (if present), otherwise the <em>Balance b/fwd</em> value.<br>
@@ -1517,23 +1662,21 @@ def page_order_report():
         with col_manager:
             configured   = st.session_state["configured_depots"]
             n_configured = len(configured)
-            depot_rows_html = "".join([
-                f'<div class="depot-item"><span class="depot-idx">{i+1}</span>'
-                f'<span class="depot-tick">✓</span><span>{d}</span></div>'
-                for i, d in enumerate(configured)
-            ])
             st.markdown(f"""
-            <div class="depot-panel">
-              <div class="depot-panel-header">
-                <span class="depot-panel-title">Depot List</span>
-                <span class="depot-count">{n_configured} depots</span>
+            <div class="depot-manager">
+              <div class="depot-manager-header">
+                <span class="depot-manager-title">Depot List</span>
+                <span class="depot-count-badge">{n_configured} depots</span>
               </div>
-              <div class="depot-body">{depot_rows_html}</div>
-            </div>
-            """, unsafe_allow_html=True)
+              <div class="depot-list-body">
+            """ + "".join([
+                f'<div class="depot-row"><span class="depot-row-index">{i+1}</span>'
+                f'<span class="depot-check">✓</span><span class="depot-name">{d}</span></div>'
+                for i, d in enumerate(configured)
+            ]) + "</div></div>", unsafe_allow_html=True)
 
             with st.expander("✏️  Edit depot list", expanded=False):
-                st.markdown("**Remove a depot**")
+                st.markdown('<div class="add-depot-title">Remove a depot</div>', unsafe_allow_html=True)
                 if configured:
                     remove_choice = st.selectbox("Select depot to remove", options=configured,
                                                   key="depot_remove_choice", label_visibility="collapsed")
@@ -1543,11 +1686,11 @@ def page_order_report():
                 else:
                     st.caption("No depots configured.")
 
-                st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-                st.markdown("**Add from configured depots**")
+                st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+                st.markdown('<div class="add-depot-title">Add a depot</div>', unsafe_allow_html=True)
                 addable = [d for d in sorted(DEPOT_MAP.keys()) if d not in st.session_state["configured_depots"]]
                 if addable:
-                    add_choice = st.selectbox("Choose depot to add", options=addable,
+                    add_choice = st.selectbox("Choose from configured depots", options=addable,
                                                key="depot_add_choice", label_visibility="collapsed")
                     if st.button("➕  Add depot", key="btn_add_depot"):
                         st.session_state["configured_depots"].append(add_choice)
@@ -1556,8 +1699,8 @@ def page_order_report():
                 else:
                     st.caption("All configured depots are already in the list.")
 
-                st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-                st.markdown("**Add custom depot name**")
+                st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+                st.markdown('<div class="add-depot-title">Custom depot name</div>', unsafe_allow_html=True)
                 custom_name = st.text_input("Type a depot name manually",
                                              placeholder="e.g. GHANA OIL CO.LTD, TAKORADI",
                                              key="depot_custom_input", label_visibility="collapsed")
@@ -1570,16 +1713,14 @@ def page_order_report():
                     else:
                         st.warning("That depot is already in the list.")
 
-                st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+                st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
                 if st.button("↺  Reset to defaults", key="btn_reset_depots"):
                     st.session_state["configured_depots"] = list(DEFAULT_DEPOTS)
                     st.rerun()
 
         with col_controls:
-            selected_products = st.multiselect(
-                "Products to fetch", ["PMS", "GASOIL", "LPG"],
-                default=["PMS", "GASOIL", "LPG"], key="oilcorp_products",
-            )
+            selected_products = st.multiselect("Products", ["PMS", "GASOIL", "LPG"],
+                                                default=["PMS", "GASOIL", "LPG"], key="oilcorp_products")
             depots_to_query   = st.session_state["configured_depots"]
             products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG"]
             total_calls       = len(depots_to_query) * len(products_to_query)
@@ -1587,13 +1728,12 @@ def page_order_report():
             st.markdown(f"""
             <div class="query-counter">
                 <div class="query-number">{total_calls}</div>
-                <div>API calls &nbsp;·&nbsp; <strong>{len(depots_to_query)}</strong> depot(s) ×
-                <strong>{len(products_to_query)}</strong> product(s) for <strong>{month_label}</strong></div>
+                <div>API calls &nbsp;·&nbsp; <strong>{len(depots_to_query)}</strong> depot(s) × <strong>{len(products_to_query)}</strong> product(s) for <strong>{month_label}</strong></div>
             </div>
             """, unsafe_allow_html=True)
 
             if not depots_to_query:
-                st.warning("Add at least one depot before fetching.")
+                st.warning("Add at least one depot to the list before fetching.")
             elif st.button("🔄  Fetch Stock Balances", type="primary", use_container_width=True):
                 opening_results, closing_results = [], []
                 progress  = st.progress(0, text="Initialising…")
@@ -1654,6 +1794,7 @@ def page_order_report():
                     for prod in PRODUCTS:
                         info    = prod_info.get(prod, {})
                         balance = info.get("balance")
+                        error   = info.get("error", "")
                         if balance is not None:
                             row_dict[prod] = f"{balance:,.0f}"
                             row_total     += balance
@@ -1677,7 +1818,7 @@ def page_order_report():
                 rows.append(total_row)
                 return pd.DataFrame(rows)
 
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
             col_a, col_b = st.columns(2)
             with col_a:
                 if opening_data:
@@ -1688,33 +1829,32 @@ def page_order_report():
                     st.markdown("#### 📁 Closing Stock Balance")
                     st.dataframe(_pivot_for_display(closing_data), use_container_width=True, hide_index=True)
 
-    # ── Tab 4: Export ──────────────────────────────────────────
     with tab4:
         opening_data = st.session_state.get("oilcorp_opening")
         closing_data = st.session_state.get("oilcorp_closing")
+        has_stock    = bool(opening_data or closing_data)
 
-        open_cls  = "on" if opening_data else ""
-        close_cls = "on" if closing_data else ""
+        p1_badge    = '<span class="sheet-badge active">P1</span>'
+        sum_badge   = '<span class="sheet-badge active">SUMMARY</span>'
+        open_badge  = f'<span class="sheet-badge {"active" if opening_data else ""}">OPENING STOCK</span>'
+        close_badge = f'<span class="sheet-badge {"active" if closing_data else ""}">CLOSING STOCK</span>'
 
         st.markdown(f"""
         <div class="export-card">
-            <span class="export-card-icon">📊</span>
-            <div class="export-card-title">Order Request Report — Excel Workbook</div>
-            <div class="export-card-desc">
+            <span class="export-icon">📊</span>
+            <div class="export-title">Order Request Report — Excel Workbook</div>
+            <div class="export-desc">
                 P1 breakdown, loading summary, and stock balances for <strong>{month_label}</strong>.
             </div>
             <div class="sheet-badges">
-                <span class="sheet-badge on">P1</span>
-                <span class="sheet-badge on">SUMMARY</span>
-                <span class="sheet-badge {open_cls}">OPENING STOCK</span>
-                <span class="sheet-badge {close_cls}">CLOSING STOCK</span>
+                {p1_badge} {sum_badge} {open_badge} {close_badge}
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        if not (opening_data or closing_data):
+        if not has_stock:
             st.markdown("""
-            <div class="info-panel" style="max-width:520px; margin:0 auto 1rem auto; text-align:center;">
+            <div class="info-panel" style="max-width:520px; margin: 0 auto 1rem auto; text-align:center;">
                 Visit the <strong>Stock Balances</strong> tab to fetch OILCORP stock data first.
             </div>
             """, unsafe_allow_html=True)
@@ -1738,43 +1878,49 @@ def page_order_report():
 
 
 # ══════════════════════════════════════════════════════════════
-# PAGE: DAILY ORDERS
+# PAGE: DAILY ORDERS — OilCorp Energia
 # ══════════════════════════════════════════════════════════════
 def page_daily_orders():
-    render_page_header(
-        eyebrow      = "OILCORP ENERGIA LIMITED",
-        title        = "Daily",
-        title_accent = "Orders",
-        subtitle     = "Truck-level dispatch records for OilCorp Energia — fetched live from the NPA portal.",
-    )
+    st.markdown("""
+    <div class="hero-header">
+      <div class="hero-inner">
+        <div class="hero-eyebrow">▸ OILCORP ENERGIA LIMITED</div>
+        <h1 class="hero-title">Daily <span>Orders</span></h1>
+        <p class="hero-subtitle">Truck-level dispatch records for OilCorp Energia — fetched live from the NPA portal.</p>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # ── 01  DATE RANGE ─────────────────────────────────────────
-    render_section("01", "Date Range")
-    st.markdown('<div class="config-card">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        start_date = st.date_input("From", value=datetime.now() - timedelta(days=7), key="daily_start")
-    with col2:
-        end_date   = st.date_input("To",   value=datetime.now(),                     key="daily_end")
-    with col3:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.info(f"**{(end_date - start_date).days + 1}** day window selected")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">01 — DATE RANGE</div>', unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown('<div class="period-card">', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            start_date = st.date_input("From", value=datetime.now() - timedelta(days=7), key="daily_start")
+        with col2:
+            end_date   = st.date_input("To",   value=datetime.now(),                     key="daily_end")
+        with col3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.info(f"**{(end_date - start_date).days + 1}** day window selected")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if start_date > end_date:
         st.error("Start date must be before end date.")
         return
 
-    # ── 02  FETCH ──────────────────────────────────────────────
-    render_section("02", "Fetch Orders")
+    st.markdown('<div class="section-label">02 — FETCH</div>', unsafe_allow_html=True)
+
     st.markdown(f"""
     <div class="info-panel">
         Queries the NPA Daily Order Report endpoint (<code>CreateDailyOrderReport</code>) authenticated as
         <strong>OilCorp Energia</strong> (iUserId=<code>{OILCORP_USER_ID}</code>).
-        Results are automatically scoped to OilCorp's own orders — covers all products (PMS, GASOIL, LPG)
-        and all depots, grouped by depot.<br><br>
-        <strong>Config:</strong> lngCompanyId=<code>{NPA_COMPANY_ID}</code> &nbsp;|&nbsp;
-        iUserId=<code>{OILCORP_USER_ID}</code> &nbsp;|&nbsp; iAppId=<code>{NPA_APP_ID}</code>
+        The NPA portal scopes results to OilCorp's own orders automatically — no secondary
+        filtering is applied. Covers all products (PMS, GASOIL, LPG) and all depots simultaneously,
+        grouped by depot.<br><br>
+        <strong>Active config:</strong> lngCompanyId=<code>{NPA_COMPANY_ID}</code> &nbsp;|&nbsp;
+        iUserId=<code>{OILCORP_USER_ID}</code> &nbsp;|&nbsp;
+        iAppId=<code>{NPA_APP_ID}</code>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1787,6 +1933,7 @@ def page_daily_orders():
     if fetch_clicked:
         for k in ["daily_debug_variant_A", "daily_winning_variant"]:
             st.session_state.pop(k, None)
+
         with st.spinner(f"Fetching OilCorp daily orders ({start_date.strftime('%d %b')} → {end_date.strftime('%d %b %Y')})…"):
             try:
                 df_fetched = fetch_oilcorp_daily_orders(
@@ -1797,7 +1944,10 @@ def page_daily_orders():
                 st.session_state["oilcorp_daily_start"] = start_date
                 st.session_state["oilcorp_daily_end"]   = end_date
                 if df_fetched.empty:
-                    st.warning("No records found for this date range. Check debug info below.")
+                    st.warning(
+                        "No OilCorp daily order records found for this date range. "
+                        "Check the debug info below to see what the server returned."
+                    )
                 else:
                     winning = st.session_state.get("daily_winning_variant", "?")
                     st.success(f"✅ {len(df_fetched):,} order records retrieved (Variant {winning}).")
@@ -1806,7 +1956,7 @@ def page_daily_orders():
                 return
 
     if show_debug:
-        render_section("🔍", "Debug — API Response")
+        st.markdown('<div class="section-label">🔍 DEBUG — API RESPONSE</div>', unsafe_allow_html=True)
         dbg = st.session_state.get("daily_debug_variant_A")
         if dbg:
             with st.expander("Variant A response", expanded=True):
@@ -1816,11 +1966,20 @@ def page_daily_orders():
 
     df = st.session_state.get("oilcorp_daily_df", pd.DataFrame())
     if df is None or (isinstance(df, pd.DataFrame) and df.empty):
-        render_empty_state("📋", "Select a date range and fetch to see orders")
+        st.markdown("""
+        <div style="text-align:center; padding: 3rem 0; color: var(--text-muted);">
+            <div style="font-size:2.5rem; margin-bottom:0.8rem;">📋</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase;">
+                Select a date range and fetch to see orders
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         return
 
-    d_start    = st.session_state.get("oilcorp_daily_start", start_date)
-    d_end      = st.session_state.get("oilcorp_daily_end",   end_date)
+    st.markdown('<div class="section-label">03 — SUMMARY</div>', unsafe_allow_html=True)
+
+    d_start = st.session_state.get("oilcorp_daily_start", start_date)
+    d_end   = st.session_state.get("oilcorp_daily_end",   end_date)
     period_lbl = f"{d_start.strftime('%d %b')} – {d_end.strftime('%d %b %Y')}"
 
     total_vol = df["Quantity (L)"].sum() if "Quantity (L)" in df.columns else 0
@@ -1832,46 +1991,43 @@ def page_daily_orders():
         else 0
     )
 
-    # ── 03  SUMMARY ────────────────────────────────────────────
-    render_section("03", "Summary")
     st.markdown(f"""
-    <div class="daily-grid">
-      <div class="daily-card">
-        <div class="daily-card-label">Total Orders</div>
-        <div class="daily-card-value">{n_orders:,}</div>
-        <div class="daily-card-sub">{period_lbl}</div>
+    <div class="daily-metric-row">
+      <div class="daily-metric">
+        <div class="daily-metric-label">Total Orders</div>
+        <div class="daily-metric-value">{n_orders:,}</div>
+        <div class="daily-metric-sub">{period_lbl}</div>
       </div>
-      <div class="daily-card">
-        <div class="daily-card-label">Total Volume</div>
-        <div class="daily-card-value">{total_vol:,.0f}</div>
-        <div class="daily-card-sub">Litres dispatched</div>
+      <div class="daily-metric">
+        <div class="daily-metric-label">Total Volume</div>
+        <div class="daily-metric-value">{total_vol:,.0f}</div>
+        <div class="daily-metric-sub">Litres dispatched</div>
       </div>
-      <div class="daily-card">
-        <div class="daily-card-label">Depots Active</div>
-        <div class="daily-card-value">{n_depots}</div>
-        <div class="daily-card-sub">Unique depots</div>
+      <div class="daily-metric">
+        <div class="daily-metric-label">Depots Active</div>
+        <div class="daily-metric-value">{n_depots}</div>
+        <div class="daily-metric-sub">Unique depots</div>
       </div>
-      <div class="daily-card">
-        <div class="daily-card-label">Est. Value</div>
-        <div class="daily-card-value">₵{total_val:,.0f}</div>
-        <div class="daily-card-sub">Volume × price</div>
+      <div class="daily-metric">
+        <div class="daily-metric-label">Est. Value</div>
+        <div class="daily-metric-value">₵{total_val:,.0f}</div>
+        <div class="daily-metric-sub">Volume × price</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── 04  BREAKDOWN ──────────────────────────────────────────
-    render_section("04", "Breakdown")
+    st.markdown('<div class="section-label">04 — BREAKDOWN</div>', unsafe_allow_html=True)
 
     tab_prod, tab_depot, tab_detail = st.tabs([
-        "📦  By Product", "🏭  By Depot", "🔍  Full Detail",
+        "  By Product  ", "  By Depot  ", "  Full Detail  "
     ])
 
     with tab_prod:
-        st.markdown('<div class="tab-title">Product Summary</div>', unsafe_allow_html=True)
+        st.markdown('<div class="tab-heading">Product Summary</div>', unsafe_allow_html=True)
         if "Product" in df.columns and "Quantity (L)" in df.columns:
             prod_grp = (
                 df.groupby("Product")
-                .agg(Orders=("Order Number","count"), Volume=("Quantity (L)","sum"))
+                .agg(Orders=("Order Number", "count"), Volume=("Quantity (L)", "sum"))
                 .reset_index()
                 .sort_values("Volume", ascending=False)
             )
@@ -1881,7 +2037,7 @@ def page_daily_orders():
             st.info("Product column not available.")
 
     with tab_depot:
-        st.markdown('<div class="tab-title">Depot Summary</div>', unsafe_allow_html=True)
+        st.markdown('<div class="tab-heading">Depot Summary</div>', unsafe_allow_html=True)
         if "Depot" in df.columns and "Quantity (L)" in df.columns:
             depot_grp = (
                 df.groupby("Depot")
@@ -1895,7 +2051,7 @@ def page_daily_orders():
             st.info("Depot column not available.")
 
     with tab_detail:
-        st.markdown('<div class="tab-title">Full Order Detail</div>', unsafe_allow_html=True)
+        st.markdown('<div class="tab-heading">Full Order Detail</div>', unsafe_allow_html=True)
         fc1, fc2, fc3 = st.columns(3)
         with fc1:
             products_all = ["All"] + sorted(df["Product"].dropna().unique().tolist()) if "Product" in df.columns else ["All"]
@@ -1909,31 +2065,28 @@ def page_daily_orders():
 
         filt = df.copy()
         if prod_filter   != "All" and "Product" in filt.columns: filt = filt[filt["Product"]  == prod_filter]
-        if depot_filter  != "All" and "Depot"   in filt.columns: filt = filt[filt["Depot"]    == depot_filter]
-        if status_filter != "All" and "Status"  in filt.columns: filt = filt[filt["Status"]   == status_filter]
+        if depot_filter  != "All" and "Depot" in filt.columns:   filt = filt[filt["Depot"]    == depot_filter]
+        if status_filter != "All" and "Status" in filt.columns:  filt = filt[filt["Status"]   == status_filter]
 
         filt_vol = filt["Quantity (L)"].sum() if "Quantity (L)" in filt.columns else 0
         st.caption(f"Showing **{len(filt):,}** records  |  Volume: **{filt_vol:,.0f} L**")
         st.dataframe(filt, use_container_width=True, hide_index=True, height=450)
 
-    # ── 05  EXPORT ─────────────────────────────────────────────
-    render_section("05", "Export")
+    st.markdown('<div class="section-label">05 — EXPORT</div>', unsafe_allow_html=True)
 
     products_in_df = sorted(df["Product"].dropna().unique()) if "Product" in df.columns else []
-    badges_html = (
-        '<span class="sheet-badge on">Daily Orders</span>'
-        + "".join(f'<span class="sheet-badge on">{p}</span>' for p in products_in_df)
-    )
-
     st.markdown(f"""
     <div class="export-card">
-        <span class="export-card-icon">📦</span>
-        <div class="export-card-title">Daily Orders — Excel Workbook</div>
-        <div class="export-card-desc">
-            All orders + per-product breakdowns for <strong>{period_lbl}</strong>.<br>
+        <span class="export-icon">📦</span>
+        <div class="export-title">Daily Orders — Excel Workbook</div>
+        <div class="export-desc">
+            All orders + per-product breakdowns for <strong>{period_lbl}</strong>.
             Columns: Date, Order Number, BRV, Product, Depot, Quantity (L), Price (₵/L), Status.
         </div>
-        <div class="sheet-badges">{badges_html}</div>
+        <div class="sheet-badges">
+            <span class="sheet-badge active">Daily Orders</span>
+            {''.join(f'<span class="sheet-badge active">{p}</span>' for p in products_in_df)}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1952,31 +2105,27 @@ def page_daily_orders():
 
 
 # ══════════════════════════════════════════════════════════════
-# SIDEBAR + MAIN
+# SIDEBAR NAV + MAIN
 # ══════════════════════════════════════════════════════════════
-def render_sidebar():
+def main():
     with st.sidebar:
-        # ── Logo / Brand ───────────────────────────────────────
         st.markdown("""
-        <div style="padding:1.8rem 1.2rem 1rem 1.2rem; border-bottom:1px solid #2A3A52;">
-            <div style="font-family:'JetBrains Mono',monospace; font-size:0.55rem;
-                        letter-spacing:0.25em; text-transform:uppercase; color:#3B82F6;
-                        margin-bottom:0.45rem;">⛽ OILCORP ENERGIA</div>
-            <div style="font-size:1.35rem; font-weight:700; color:#F1F5F9;
-                        letter-spacing:-0.02em; line-height:1.15;">Intelligence<br>
-                <span style="color:#3B82F6;">Suite</span>
-            </div>
-            <div style="font-size:0.72rem; color:#475569; margin-top:0.35rem;">
-                NPA Reporting Platform
-            </div>
+        <div style="padding: 1.5rem 0 1rem 0; text-align: center;">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+                        letter-spacing: 0.25em; text-transform: uppercase; color: #2F81F7;
+                        margin-bottom: 0.5rem;">▸ OILCORP ENERGIA</div>
+            <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 1.5rem;
+                        font-weight: 800; color: #E6EDF3; letter-spacing: -0.01em;
+                        line-height: 1;">Intelligence<br><span style="color:#2F81F7">Suite</span></div>
         </div>
         """, unsafe_allow_html=True)
 
-        # ── Navigation ─────────────────────────────────────────
+        st.markdown('<hr style="border-color: #30363D; margin: 0.5rem 0 1.2rem 0;">', unsafe_allow_html=True)
+
         st.markdown("""
-        <div style="font-family:'JetBrains Mono',monospace; font-size:0.55rem;
-                    letter-spacing:0.18em; text-transform:uppercase; color:#475569;
-                    padding:1rem 1.2rem 0.4rem 1.2rem;">Navigation</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+                    letter-spacing: 0.2em; text-transform: uppercase; color: #484F58;
+                    margin-bottom: 0.6rem;">Navigation</div>
         """, unsafe_allow_html=True)
 
         page = st.radio(
@@ -1986,13 +2135,11 @@ def render_sidebar():
             key="nav_page",
         )
 
-        st.markdown('<div style="height:1px; background:#2A3A52; margin:1rem 1.2rem;"></div>', unsafe_allow_html=True)
-
-        # ── Session State ──────────────────────────────────────
+        st.markdown('<hr style="border-color: #30363D; margin: 1.5rem 0 1rem 0;">', unsafe_allow_html=True)
         st.markdown("""
-        <div style="font-family:'JetBrains Mono',monospace; font-size:0.55rem;
-                    letter-spacing:0.18em; text-transform:uppercase; color:#475569;
-                    padding:0 1.2rem 0.5rem 1.2rem;">Session Data</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+                    letter-spacing: 0.2em; text-transform: uppercase; color: #484F58;
+                    margin-bottom: 0.8rem;">Session Data</div>
         """, unsafe_allow_html=True)
 
         has_opening = bool(st.session_state.get("oilcorp_opening"))
@@ -2003,12 +2150,9 @@ def render_sidebar():
         )
 
         def _badge(label, active):
-            color = "#10B981" if active else "#475569"
-            dot   = "●" if active else "○"
-            return (
-                f'<div style="font-size:0.8rem; color:{color}; padding:0.15rem 1.2rem;">'
-                f'{dot}&nbsp; {label}</div>'
-            )
+            color = "#3FB950" if active else "#484F58"
+            icon  = "●" if active else "○"
+            return f'<div style="font-size: 0.8rem; color: {color}; margin-bottom: 0.3rem;">{icon} {label}</div>'
 
         st.markdown(
             _badge("Opening Stock", has_opening) +
@@ -2018,31 +2162,21 @@ def render_sidebar():
         )
 
         if any([has_opening, has_closing, has_daily]):
-            st.markdown('<div style="margin:0.75rem 1.2rem 0 1.2rem;">', unsafe_allow_html=True)
+            st.markdown('<br>', unsafe_allow_html=True)
             if st.button("🗑  Clear session data", use_container_width=True):
                 for k in ["oilcorp_opening", "oilcorp_closing", "oilcorp_daily_df",
-                           "oilcorp_daily_start", "oilcorp_daily_end"]:
+                           "oilcorp_daily_start", "oilcorp_daily_end",
+                           "order_df_cache", "order_df_source"]:
                     st.session_state.pop(k, None)
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 
-        # ── Footer ─────────────────────────────────────────────
+        st.markdown('<hr style="border-color: #30363D; margin: 1.5rem 0 1rem 0;">', unsafe_allow_html=True)
         st.markdown("""
-        <div style="position:absolute; bottom:1.5rem; left:0; right:0;
-                    text-align:center; padding:0 1rem;">
-            <div style="height:1px; background:#2A3A52; margin-bottom:1rem;"></div>
-            <div style="font-family:'JetBrains Mono',monospace; font-size:0.55rem;
-                        letter-spacing:0.08em; color:#334155; line-height:1.6;">
-                OILCORP ENERGIA LIMITED<br>v2.0 · NPA Reporting Suite
-            </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+                    letter-spacing: 0.1em; color: #484F58; text-align: center;">
+            OILCORP ENERGIA LIMITED<br>NPA Reporting Suite
         </div>
         """, unsafe_allow_html=True)
-
-    return page
-
-
-def main():
-    page = render_sidebar()
 
     if page == "📋  Order Request Report":
         page_order_report()
