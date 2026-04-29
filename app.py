@@ -579,6 +579,26 @@ MONTHS = {
     9:"September",10:"October",11:"November",12:"December"
 }
 
+# ══════════════════════════════════════════════════════════════
+# YEAR-AWARE DEPOT LINK CONFIG
+# Maps year → secret key that holds the Google Drive URL
+# Add more years here as needed (e.g. DEPOT_LINK_2024 → 2024)
+# ══════════════════════════════════════════════════════════════
+DEPOT_LINK_KEY_MAP = {
+    2026: "DEPOT_LINK_2026",
+    2025: "DEPOT_LINK_2025",
+}
+
+# Fallback order: try year-specific key, then legacy DEPOT_LINK
+def _get_depot_link_for_year(year: int) -> str:
+    key = DEPOT_LINK_KEY_MAP.get(year)
+    if key:
+        link = _cfg(key, "")
+        if link:
+            return link
+    # Fallback to legacy key for any year not explicitly mapped
+    return _cfg("DEPOT_LINK", "")
+
 
 def _load_depot_map() -> dict:
     depot_map = {}
@@ -609,8 +629,14 @@ def _load_depot_map() -> dict:
         "SENTUO OIL REFINERY TEMA":                  "SENTUO OIL REFINERY - TEMA",
     }
 
+    # Exclude DEPOT_LINK_* keys — those are Drive URLs, not depot ID mappings
+    excluded_prefixes = ("DEPOT_LINK",)
+
     for key, value in raw_entries.items():
-        raw  = key[6:]
+        raw = key[6:]  # strip "DEPOT_"
+        # Skip LINK_* entries
+        if any(raw.upper().startswith(ep[6:]) for ep in excluded_prefixes):
+            continue
         name = raw.replace("_", " ").strip()
         name = fixes.get(name, name)
         try:
@@ -791,28 +817,13 @@ def fetch_oilcorp_stock_balances(year, month, depot_name, depot_id, product, pro
 
 
 # ══════════════════════════════════════════════════════════════
-# DAILY ORDERS PARSER  — FIXED
-#
-# Root cause of the original bug:
-#   The old parser looked for status keywords ("Released", "Submitted")
-#   WITHIN each data line. But the real PDF puts "Order Status : <text>"
-#   as a SECTION HEADER above the data lines — the data lines themselves
-#   contain no status text at all.
-#
-# Fix:
-#   1. Track current status from "Order Status : ..." header lines (state machine).
-#   2. Parse every date-prefixed line as a data row regardless of status.
-#   3. Handle multi-word product names: "PMS (Retail Outlets)", "AGO(Retail
-#      Outlets)", bare "LPG" — by tokenising from the right (price, volume
-#      are always the last two numeric tokens; BRV is the token before them).
+# DAILY ORDERS PARSER
 # ══════════════════════════════════════════════════════════════
 
-# Regex: date is always DD/MM/YYYY at line start
 _DAILY_DATE_RE   = re.compile(r'^(\d{2}/\d{2}/\d{4})\s+(\S+)\s+(.*)')
 _DAILY_STATUS_RE = re.compile(r'^order\s+status\s*:\s*(.+)', re.IGNORECASE)
 _DAILY_DEPOT_RE  = re.compile(r'^depot\s*:\s*(.+)',          re.IGNORECASE)
 
-# Known product patterns — ordered longest-match-first
 _PRODUCT_PATTERNS = [
     (re.compile(r'AGO\s*\(.*?\)',     re.IGNORECASE), 'AGO'),
     (re.compile(r'PMS\s*\(.*?\)',     re.IGNORECASE), 'PMS'),
@@ -836,7 +847,6 @@ _DAILY_SKIP_PREFIXES = (
 
 
 def _canonicalise_product(raw: str) -> str:
-    """Map raw product text to a clean canonical name."""
     for pattern, name in _PRODUCT_PATTERNS:
         if pattern.search(raw):
             return name
@@ -853,26 +863,6 @@ def _parse_daily_date(tok: str) -> str:
 
 
 def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
-    """
-    Parse the NPA Daily Order PDF fetched under OilCorp's credentials.
-
-    PDF layout (confirmed from real PDFs):
-        DEPOT:<name>
-        BDC:<bdc name>
-        Order Status : <status text>        ← SECTION HEADER (state to track)
-        DD/MM/YYYY  ORDER_NUM  PRODUCT  BRV  PRICE  VOLUME   ← data lines
-        ... more data lines at this status ...
-        Order Status : <next status>
-        ... data lines ...
-        DEPOT:<next depot>
-        ...
-
-    Column extraction for each data line (right-to-left):
-        volume  = last token  (numeric, may have commas)
-        price   = 2nd-to-last token
-        brv     = 3rd-to-last token
-        product = everything between order_number and brv (multi-word OK)
-    """
     rows       = []
     cur_depot  = "Unknown"
     cur_status = "Unknown"
@@ -891,24 +881,20 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
                     cl_lower = cl.lower()
 
-                    # Skip known header/footer lines
                     if any(cl_lower.startswith(p) for p in _DAILY_SKIP_PREFIXES):
                         continue
 
-                    # ── Depot header: "DEPOT:BOST - ACCRA PLAINS" ──────────
                     dm = _DAILY_DEPOT_RE.match(cl)
                     if dm:
                         cur_depot  = dm.group(1).strip()
                         cur_status = "Unknown"
                         continue
 
-                    # ── Status header: "Order Status : Depot Manager" ──────
                     sm = _DAILY_STATUS_RE.match(cl)
                     if sm:
                         cur_status = sm.group(1).strip()
                         continue
 
-                    # ── Data line: must start with DD/MM/YYYY ──────────────
                     dlm = _DAILY_DATE_RE.match(cl)
                     if not dlm:
                         continue
@@ -916,10 +902,8 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
                     date_str  = _parse_daily_date(dlm.group(1))
                     order_num = dlm.group(2).strip()
                     rest      = dlm.group(3).strip()
-                    # rest = "PRODUCT_TOKENS... BRV PRICE VOLUME"
 
                     tokens = rest.split()
-                    # Need at least: 1 product token + brv + price + volume = 4
                     if len(tokens) < 4:
                         continue
 
@@ -963,10 +947,6 @@ def extract_oilcorp_daily_orders(pdf_bytes: bytes) -> pd.DataFrame:
 
 
 def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.DataFrame:
-    """
-    Fetch OilCorp Energia daily orders from the NPA portal using Variant A
-    (intPeriodID=-1, strQuery1="" — browser-confirmed for daily view).
-    """
     start_str = start_date.strftime("%m/%d/%Y")
     end_str   = end_date.strftime("%m/%d/%Y")
 
@@ -1013,17 +993,14 @@ def load_order_data(file):
 
 
 # ══════════════════════════════════════════════════════════════
-# GOOGLE DRIVE ORDER REQUEST FETCHER
+# GOOGLE DRIVE ORDER REQUEST FETCHER  (year-aware)
 # ══════════════════════════════════════════════════════════════
 
 def _extract_gdrive_file_id(url: str) -> str | None:
-    """Extract the file ID from a Google Drive share URL."""
     import re as _re
-    # Pattern: /d/<ID>/
     m = _re.search(r"/d/([a-zA-Z0-9_-]{10,})", url)
     if m:
         return m.group(1)
-    # Pattern: id=<ID>
     m = _re.search(r"[?&]id=([a-zA-Z0-9_-]{10,})", url)
     if m:
         return m.group(1)
@@ -1034,32 +1011,29 @@ def _gdrive_direct_download_url(file_id: str) -> str:
     return f"https://drive.google.com/uc?export=download&id={file_id}"
 
 
-def fetch_order_data_from_drive() -> tuple[pd.DataFrame | None, str]:
+def fetch_order_data_from_drive(year: int) -> tuple[pd.DataFrame | None, str]:
     """
-    Try to download the ORDER REQUEST spreadsheet from Google Drive.
-    Returns (DataFrame, error_message).
-    error_message is "" on success.
+    Try to download the ORDER REQUEST spreadsheet from Google Drive for the given year.
+    Looks up DEPOT_LINK_<YEAR> secret first, then falls back to legacy DEPOT_LINK.
+    Returns (DataFrame, error_message).  error_message is "" on success.
     """
-    depot_link = _cfg("DEPOT_LINK", "")
+    depot_link = _get_depot_link_for_year(year)
     if not depot_link:
-        return None, "DEPOT_LINK secret is not configured."
+        return None, f"No Drive link configured for {year} (DEPOT_LINK_{year} secret is not set)."
 
     file_id = _extract_gdrive_file_id(depot_link)
     if not file_id:
-        return None, "Could not extract a file ID from DEPOT_LINK."
+        return None, f"Could not extract a file ID from the Drive link for {year}."
 
     download_url = _gdrive_direct_download_url(file_id)
 
     try:
         session = _requests.Session()
-        # First request — may get a virus-scan warning page for large files
         resp = session.get(download_url, timeout=60)
         resp.raise_for_status()
 
-        # Handle Google's "virus scan" confirmation page
         content_type = resp.headers.get("Content-Type", "")
         if "text/html" in content_type:
-            # Look for the confirmation token
             import re as _re
             token_match = _re.search(r'confirm=([0-9A-Za-z_\-]+)', resp.text)
             if token_match:
@@ -1328,10 +1302,6 @@ def write_stock_balance_sheet(ws, balance_data, sheet_type, month_label):
 
 
 def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
-    """
-    Write OilCorp daily orders to an Excel worksheet.
-    Columns: Date, Order Number, BRV, Product, Depot, Quantity (L), Price (₵/L), Status
-    """
     if daily_df.empty:
         ws.cell(1, 1, "No daily order data available.")
         return
@@ -1362,7 +1332,6 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
             if isinstance(val, (int, float)) and col_name in ("Quantity (L)", "Price (₵/L)"):
                 c.number_format = "#,##0.00"
 
-    # Grand total row for quantity
     if "Quantity (L)" in daily_df.columns:
         qty_col_idx = list(daily_df.columns).index("Quantity (L)") + 1
         total_row   = len(daily_df) + 3
@@ -1393,12 +1362,11 @@ def write_daily_orders_sheet(ws, daily_df: pd.DataFrame):
 
 
 # ══════════════════════════════════════════════════════════════
-# EXCEL GENERATORS — Two separate workbooks
+# EXCEL GENERATORS
 # ══════════════════════════════════════════════════════════════
 
 def generate_order_request_excel(tables, summary_df, month_label,
                                  opening_data=None, closing_data=None) -> io.BytesIO:
-    """Workbook 1: Order Request Report"""
     wb = Workbook()
     ws_p1 = wb.active
     ws_p1.title = "P1"
@@ -1423,7 +1391,6 @@ def generate_order_request_excel(tables, summary_df, month_label,
 
 def generate_daily_orders_excel(daily_df: pd.DataFrame,
                                 start_date: datetime, end_date: datetime) -> io.BytesIO:
-    """Workbook 2: Daily Orders — all orders + per-product sheets"""
     wb = Workbook()
     ws_all = wb.active
     ws_all.title = "Daily Orders"
@@ -1476,55 +1443,91 @@ def page_order_report():
       <div class="hero-inner">
         <div class="hero-eyebrow">▸ OILCORP ENERGIA LIMITED</div>
         <h1 class="hero-title">Order Request <span>Report</span></h1>
-        <p class="hero-subtitle">Order Request data is loaded automatically. P1, Summary and Stock Balance reports are generated instantly.</p>
+        <p class="hero-subtitle">Select a year and month — the matching Order Request file loads automatically from Google Drive.</p>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="section-label">01 — INPUT FILE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">01 — REPORTING PERIOD</div>', unsafe_allow_html=True)
 
-    # ── Try Google Drive first ────────────────────────────────────
+    # ── Year / Month selection FIRST — Drive fetch is year-dependent ──────────
+    with st.container():
+        st.markdown('<div class="period-card">', unsafe_allow_html=True)
+        col_y, col_m, _ = st.columns([1, 1, 2])
+        with col_y:
+            available_years = sorted(DEPOT_LINK_KEY_MAP.keys(), reverse=True)
+            # If no years configured fall back to current year
+            if not available_years:
+                available_years = [datetime.now().year]
+            sel_year = st.selectbox("Year", available_years, key="or_year")
+        with col_m:
+            sel_month = st.selectbox(
+                "Month",
+                list(MONTHS.keys()),
+                format_func=lambda m: MONTHS[m],
+                index=datetime.now().month - 1,
+                key="or_month",
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    month_label = f"{MONTHS[sel_month]} {sel_year}"
+
+    # ── Cache key includes the year so switching year forces a fresh fetch ────
+    cache_key  = f"order_df_cache_{sel_year}"
+    source_key = f"order_df_source_{sel_year}"
+
+    st.markdown('<div class="section-label">02 — INPUT FILE</div>', unsafe_allow_html=True)
+
     df = None
     drive_error = ""
 
-    if "order_df_cache" not in st.session_state:
-        with st.spinner("Fetching Order Request data from source…"):
-            df_drive, drive_error = fetch_order_data_from_drive()
+    if cache_key not in st.session_state:
+        with st.spinner(f"Fetching {sel_year} Order Request data from Google Drive…"):
+            df_drive, drive_error = fetch_order_data_from_drive(sel_year)
             if df_drive is not None:
-                st.session_state["order_df_cache"] = df_drive
-                st.session_state["order_df_source"] = "drive"
+                st.session_state[cache_key]  = df_drive
+                st.session_state[source_key] = "drive"
             else:
-                st.session_state["order_df_source"] = "upload"
+                st.session_state[source_key] = "upload"
 
-    if st.session_state.get("order_df_source") == "drive" and "order_df_cache" in st.session_state:
+    if st.session_state.get(source_key) == "drive" and cache_key in st.session_state:
         col_info, col_reload = st.columns([5, 1])
         with col_info:
             st.markdown(
-                '<div class="info-panel" style="margin-bottom:0.8rem;">📡  '
-                '<strong>Live data</strong> — Order Request loaded automatically. '
-                'Use <em>Refresh</em> to pull the latest version.</div>',
+                f'<div class="info-panel" style="margin-bottom:0.8rem;">📡  '
+                f'<strong>Live data</strong> — {sel_year} Order Request loaded automatically from '
+                f'<code>DEPOT_LINK_{sel_year}</code>. Use <em>Refresh</em> to pull the latest version.</div>',
                 unsafe_allow_html=True,
             )
         with col_reload:
-            if st.button("🔄 Refresh", key="drive_reload", use_container_width=True):
-                st.session_state.pop("order_df_cache", None)
-                st.session_state.pop("order_df_source", None)
+            if st.button("🔄 Refresh", key=f"drive_reload_{sel_year}", use_container_width=True):
+                st.session_state.pop(cache_key, None)
+                st.session_state.pop(source_key, None)
                 st.rerun()
-        df = st.session_state["order_df_cache"]
+        df = st.session_state[cache_key]
 
     else:
         # Drive not available — allow manual upload
         if drive_error:
             st.markdown(
-                '<div class="info-panel" style="border-color:rgba(248,81,73,0.3);background:rgba(248,81,73,0.07);">'
-                '⚠️  Could not retrieve file automatically. Please upload the Order Request file manually.</div>',
+                f'<div class="info-panel" style="border-color:rgba(248,81,73,0.3);background:rgba(248,81,73,0.07);">'
+                f'⚠️  Could not retrieve the {sel_year} file automatically '
+                f'(<code>DEPOT_LINK_{sel_year}</code>): {drive_error}<br>'
+                f'Please upload the Order Request file manually.</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div class="info-panel" style="border-color:rgba(248,81,73,0.3);background:rgba(248,81,73,0.07);">'
+                f'⚠️  No Drive link configured for {sel_year}. '
+                f'Please upload the Order Request file manually.</div>',
                 unsafe_allow_html=True,
             )
 
         uploaded = st.file_uploader(
-            "Drop your ORDER REQUEST Excel file here or click to browse",
+            f"Drop your {sel_year} ORDER REQUEST Excel file here or click to browse",
             type=["xlsx"], label_visibility="visible",
-            key="order_upload",
+            key=f"order_upload_{sel_year}",
         )
 
         if not uploaded:
@@ -1541,8 +1544,8 @@ def page_order_report():
         with st.spinner("Parsing workbook…"):
             try:
                 df = load_order_data(uploaded)
-                st.session_state["order_df_cache"] = df
-                st.session_state["order_df_source"] = "upload"
+                st.session_state[cache_key]  = df
+                st.session_state[source_key] = "upload"
             except Exception as e:
                 st.error(f"Could not read ORDER REQUEST sheet: {e}")
                 return
@@ -1551,26 +1554,23 @@ def page_order_report():
         st.error("No valid data could be loaded. Please check the source file.")
         return
 
+    # ── Filter to the selected year & month ───────────────────────────────────
     df["Year"]  = df["DATE"].dt.year
     df["Month"] = df["DATE"].dt.month
-    years = sorted(df["Year"].unique(), reverse=True)
 
-    st.markdown('<div class="section-label">02 — REPORTING PERIOD</div>', unsafe_allow_html=True)
-    with st.container():
-        st.markdown('<div class="period-card">', unsafe_allow_html=True)
-        col1, col2, _ = st.columns([1, 1, 2])
-        with col1:
-            sel_year = st.selectbox("Year", years, key="or_year")
-        with col2:
-            avail_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
-            sel_month = st.selectbox("Month", avail_months, format_func=lambda m: MONTHS[m], key="or_month")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    month_label = f"{MONTHS[sel_month]} {sel_year}"
-    filtered    = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
+    filtered = df[(df["Year"] == sel_year) & (df["Month"] == sel_month)].copy()
 
     if filtered.empty:
-        st.warning("No data found for the selected period.")
+        # Show available months so the user knows what's in the file
+        available_months = sorted(df[df["Year"] == sel_year]["Month"].unique())
+        if available_months:
+            month_names = ", ".join(MONTHS[m] for m in available_months)
+            st.warning(
+                f"No data found for {month_label}. "
+                f"The {sel_year} file contains data for: **{month_names}**."
+            )
+        else:
+            st.warning(f"No data found for {sel_year} in this file.")
         return
 
     w1 = filtered[filtered["DATE"].dt.day <= 15]
@@ -2165,9 +2165,12 @@ def main():
             st.markdown('<br>', unsafe_allow_html=True)
             if st.button("🗑  Clear session data", use_container_width=True):
                 for k in ["oilcorp_opening", "oilcorp_closing", "oilcorp_daily_df",
-                           "oilcorp_daily_start", "oilcorp_daily_end",
-                           "order_df_cache", "order_df_source"]:
+                           "oilcorp_daily_start", "oilcorp_daily_end"]:
                     st.session_state.pop(k, None)
+                # Clear all year-specific caches
+                for year in DEPOT_LINK_KEY_MAP.keys():
+                    st.session_state.pop(f"order_df_cache_{year}", None)
+                    st.session_state.pop(f"order_df_source_{year}", None)
                 st.rerun()
 
         st.markdown('<hr style="border-color: #30363D; margin: 1.5rem 0 1rem 0;">', unsafe_allow_html=True)
