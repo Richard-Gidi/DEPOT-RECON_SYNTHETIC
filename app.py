@@ -571,7 +571,21 @@ PRODUCT_MAP = {
     "PMS":    int(_cfg("PRODUCT_PREMIUM_ID", "12")),
     "GASOIL": int(_cfg("PRODUCT_GASOIL_ID",  "14")),
     "LPG":    int(_cfg("PRODUCT_LPG_ID",     "28")),
+    "PREMIX": int(_cfg("PRODUCT_PREMIX_ID",  "19")),
 }
+
+# Products only held at specific depots (others are not queried / shown as "—")
+PRODUCT_DEPOT_ONLY = {
+    "PREMIX": ["TOR"],
+}
+
+
+def _product_applies(product: str, depot: str) -> bool:
+    allowed = PRODUCT_DEPOT_ONLY.get(product)
+    if not allowed:
+        return True
+    d = str(depot).upper()
+    return any(re.search(rf"\b{re.escape(a.upper())}\b", d) for a in allowed)
 
 MONTHS = {
     1:"January", 2:"February", 3:"March",    4:"April",
@@ -1204,7 +1218,7 @@ def _cell(ws, row, col, value, bold=False, bg=None, fg="000000",
 
 
 def write_stock_balance_sheet(ws, balance_data, sheet_type, month_label):
-    PRODUCTS  = ["PMS", "GASOIL", "LPG"]
+    PRODUCTS  = ["PMS", "GASOIL", "LPG", "PREMIX"]
     title_text = f"OILCORP ENERGIA LIMITED — {sheet_type} STOCK BALANCE ({month_label})"
     num_cols   = len(PRODUCTS) + 3
     ws.cell(1, 1, title_text).font = _font(bold=True, color=HEADER_FG, size=14)
@@ -1246,6 +1260,9 @@ def write_stock_balance_sheet(ws, balance_data, sheet_type, month_label):
         has_error = False
         error_msgs = []
         for ci, product in enumerate(PRODUCTS, 2):
+            if product not in prod_info and not _product_applies(product, depot):
+                _cell(ws, row, ci, "—", bg=alt_fill, border=True)
+                continue
             info    = prod_info.get(product, {})
             balance = info.get("balance")
             error   = info.get("error")
@@ -1734,11 +1751,11 @@ def page_order_report():
                     st.rerun()
 
         with col_controls:
-            selected_products = st.multiselect("Products", ["PMS", "GASOIL", "LPG"],
-                                                default=["PMS", "GASOIL", "LPG"], key="oilcorp_products")
+            selected_products = st.multiselect("Products", ["PMS", "GASOIL", "LPG", "PREMIX"],
+                                                default=["PMS", "GASOIL", "LPG", "PREMIX"], key="oilcorp_products")
             depots_to_query   = st.session_state["configured_depots"]
-            products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG"]
-            total_calls       = len(depots_to_query) * len(products_to_query)
+            products_to_query = selected_products if selected_products else ["PMS", "GASOIL", "LPG", "PREMIX"]
+            total_calls       = sum(1 for d in depots_to_query for p in products_to_query if _product_applies(p, d))
 
             st.markdown(f"""
             <div class="query-counter">
@@ -1759,15 +1776,17 @@ def page_order_report():
                 for depot_name in depots_to_query:
                     depot_id = DEPOT_MAP.get(depot_name)
                     if not depot_id:
-                        for prod in products_to_query:
+                        for prod in [p for p in products_to_query if _product_applies(p, depot_name)]:
                             opening_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in config"})
                             closing_results.append({"depot": depot_name, "product": prod, "balance": None, "error": "Depot ID not found in config"})
-                        call_n += len(products_to_query)
+                        call_n += len([p for p in products_to_query if _product_applies(p, depot_name)])
                         log_lines.append(f"⚠️ {depot_name} — not in config, skipped")
                         log_box.markdown(f"<div class='log-console'>{'<br>'.join(log_lines[-12:])}</div>", unsafe_allow_html=True)
                         continue
 
                     for product in products_to_query:
+                        if not _product_applies(product, depot_name):
+                            continue
                         product_id = PRODUCT_MAP.get(product)
                         call_n    += 1
                         progress.progress(call_n / total_calls, text=f"Fetching {depot_name} · {product}  ({call_n}/{total_calls})")
@@ -1790,7 +1809,7 @@ def page_order_report():
         closing_data = st.session_state.get("oilcorp_closing")
 
         if opening_data or closing_data:
-            PRODUCTS = ["PMS", "GASOIL", "LPG"]
+            PRODUCTS = ["PMS", "GASOIL", "LPG", "PREMIX"]
 
             def _pivot_for_display(data):
                 depot_order, depot_map_local = [], {}
@@ -1807,6 +1826,9 @@ def page_order_report():
                     row_total = 0.0
                     has_error = False
                     for prod in PRODUCTS:
+                        if prod not in prod_info and not _product_applies(prod, depot):
+                            row_dict[prod] = "—"
+                            continue
                         info    = prod_info.get(prod, {})
                         balance = info.get("balance")
                         error   = info.get("error", "")
