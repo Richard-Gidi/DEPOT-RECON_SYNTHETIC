@@ -982,7 +982,19 @@ def fetch_oilcorp_daily_orders(start_date: datetime, end_date: datetime) -> pd.D
 # ORDER REQUEST DATA LOADER
 # ══════════════════════════════════════════════════════════════
 def load_order_data(file):
-    df = pd.read_excel(file, sheet_name="ORDER REQUEST", header=8)
+    # Locate the header row dynamically (rows above it — product balances,
+    # e.g. the PREMIX row — can be added/removed without breaking the loader)
+    raw = pd.read_excel(file, sheet_name="ORDER REQUEST", header=None)
+    hdr_idx = None
+    for i in range(min(len(raw), 50)):
+        vals = {str(v).strip().upper() for v in raw.iloc[i].tolist() if pd.notna(v)}
+        if "NAME OF OMC" in vals and "DATE" in vals:
+            hdr_idx = i
+            break
+    if hdr_idx is None:
+        raise ValueError("Header row with 'Name of OMC' not found in ORDER REQUEST sheet")
+    df = raw.iloc[hdr_idx + 1:].copy()
+    df.columns = [str(c).strip() if pd.notna(c) else f"_col{j}" for j, c in enumerate(raw.iloc[hdr_idx].tolist())]
     df = df[["DATE", "Name of OMC", "Product", "Depot", "Quantity", "Comments"]].copy()
     df.columns = ["DATE", "OMC", "Product", "Depot", "Quantity", "Comments"]
     df = df.dropna(subset=["DATE", "OMC", "Depot", "Quantity"])
@@ -1084,11 +1096,14 @@ def build_summary(df):
     df2["DepotGroup"] = df2["Depot"].apply(
         lambda x: "BOST" if str(x).upper().startswith("BOST") else x
     )
+    df2["Product"] = df2["Product"].apply(
+        lambda x: "PREMIX" if str(x).strip().upper().startswith("PREMIX") else x
+    )
     pivot = df2.groupby(["DepotGroup", "Product"])["Quantity"].sum().unstack(fill_value=0)
-    for col in ["AGO", "PMS", "LPG"]:
+    for col in ["AGO", "PMS", "LPG", "PREMIX"]:
         if col not in pivot.columns:
             pivot[col] = 0
-    pivot = pivot[["AGO", "PMS", "LPG"]]
+    pivot = pivot[["AGO", "PMS", "LPG", "PREMIX"]]
     pivot["GRAND TOTAL"] = pivot.sum(axis=1)
     pivot.loc["GRAND TOTAL"] = pivot.sum()
     pivot = pivot.reset_index()
@@ -1149,8 +1164,8 @@ def write_summary_sheet(ws, summary_df):
     ws.cell(1, 1, "LOADING SUMMARY").font = _font(bold=True, color=HEADER_FG, size=14)
     ws.cell(1, 1).fill = _fill(DARK_BLUE)
     ws.cell(1, 1).alignment = _align()
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=5)
-    headers = ["DEPOT", "AGO", "PMS", "LPG", "GRAND TOTAL"]
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+    headers = ["DEPOT", "AGO", "PMS", "LPG", "PREMIX", "GRAND TOTAL"]
     for ci, h in enumerate(headers, 1):
         c = ws.cell(2, ci, h)
         c.font = _font(bold=True, color=HEADER_FG)
@@ -1170,7 +1185,7 @@ def write_summary_sheet(ws, summary_df):
                 c.number_format = "#,##0"
             if is_total:
                 c.font = _font(bold=True)
-    for col, width in zip(["A", "B", "C", "D", "E"], [20, 14, 14, 10, 16]):
+    for col, width in zip(["A", "B", "C", "D", "E", "F"], [20, 14, 14, 10, 12, 16]):
         ws.column_dimensions[col].width = width
 
 
@@ -1638,7 +1653,7 @@ def page_order_report():
         st.markdown('<div class="tab-heading">Loading Summary</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="tab-subhead">Aggregate volumes by depot group and product — {month_label}</div>', unsafe_allow_html=True)
         display_sum = summary_df.copy()
-        for col in ["AGO", "PMS", "LPG", "GRAND TOTAL"]:
+        for col in ["AGO", "PMS", "LPG", "PREMIX", "GRAND TOTAL"]:
             if col in display_sum.columns:
                 display_sum[col] = display_sum[col].apply(
                     lambda x: f"{int(x):,}" if pd.notna(x) and x != 0 else "—"
